@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Beacon Pixels</title>
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" integrity="sha512-hoalWLoI8r4UszCkZ5kL8vayOGVae1oxXe/2A4AO6J9+580uKHDO3JdHb7NzwwzK5xr/Fs0W40kiNHxM9vyTtQ==" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js" integrity="sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==" crossorigin=""></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@0.4.14/dist/leaflet.draw.css" integrity="sha384-NZLkVuBRMEeB4VeZz27WwTRvlhec30biQ8Xx7zG7JJnkvEKRg5qi6BNbEXo9ydwv" crossorigin="" />
+    <script src="https://unpkg.com/leaflet-draw@0.4.14/dist/leaflet.draw.js" integrity="sha384-3fO9eF/DdAUekXTMAf8iDpFKBOrGB6AnD5qMp97DJBMLUapgXvRtQm0Rr74n6yeF" crossorigin="" ></script>
+
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+        }
+        html, body, #mapid {
+            height: 100%;
+            width: 100%;
+        }
+        #validator-info {
+            position: absolute;
+            z-index: 10000;
+            bottom: 5px;
+            left: 5px;
+        }
+        #draw-options {
+            position: absolute;
+            z-index: 10000;
+            top: 50%;
+            left: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="mapid"></div>
+
+<div id="draw-options">
+    <div>
+        <input type="checkbox" id="draw-option-fill" checked />
+        <label for="draw-option-fill">Shape fill</label>
+    </div>
+    <div>
+        <input type="checkbox" id="draw-option-stroke" checked />
+        <label for="draw-option-stroke">Shape outline</label>
+    </div>
+    <div>
+        <input type="color" id="draw-option-color" name="shape color" value="#ff0000">
+        <label for="draw-option-color">Shape color</label>
+    </div>
+</div>
+
+<div id="validator-info"></div>
+<script>
+
+    var maxZoom = 10;
+    var mymap = L.map('mapid', {
+        crs: L.CRS.Simple,
+        minZoom: 1,
+        maxZoom: maxZoom,
+        zoom: 1,
+        center: [0, 0],
+    }).fitBounds([[-450000/256/2, 256], [256, 140000/256/2]]);
+
+    // hook map to tile server
+    var validatorOrderLayer = L.tileLayer('{{.API}}/validator-order?x={x}&y={y}&z={z}', {
+        minZoom: 0,
+        maxZoom: maxZoom,
+        attribution: 'data by @protolambda',
+        id: 'beacon',
+        tileSize: 256,
+        // added to the actual zoom level on request
+        zoomOffset: 0,
+    })
+    validatorOrderLayer.addTo(mymap);
+
+    // show which (epoch, validator) pixel is being clicked
+    mymap.on('click', function(e){
+        var loc = L.CRS.Simple.latLngToPoint(e.latlng, maxZoom);
+        var validator = Math.floor(loc.y);
+        if(loc.y < 0) {
+            validator = "unknown"
+        }
+        var epoch = Math.floor(loc.x);
+        if(loc.x < 0) {
+            epoch = "pre-genesis"
+        }
+        document.getElementById("validator-info").innerHTML =  "epoch (x axis): " + epoch + "<br/> validator index (y axis): " + validator
+    });
+
+    // everyone loves to draw on maps
+    var drawnItems = new L.FeatureGroup();
+    drawnItems.addTo(mymap);
+
+    L.control.layers({
+        'validator order': validatorOrderLayer,
+        // todo add more layers:
+        //  - attester order
+        //  - by client type
+        //  - grouped by correlated validators
+        // (maybe later): by performance, although this requires many tile updates when validators move on the leaderboard.
+    }, { 'drawings': drawnItems }, { position: 'topleft', collapsed: false }).addTo(mymap);
+
+    var drawControl = new L.Control.Draw({
+        edit: {
+            featureGroup: drawnItems,
+            poly: {
+                allowIntersection: false
+            }
+        },
+        draw: {
+            polygon: {
+                allowIntersection: false,
+                showArea: true
+            },
+        }
+    });
+    var opts = { shapeOptions: { fillColor: "#ff0000", color: "#ff0000", opacity: 0.3 } };
+    drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+
+    mymap.addControl(drawControl);
+
+    // track the drawings in a layer, so we can hide/unhide
+    mymap.on(L.Draw.Event.CREATED, function (event) {
+        var layer = event.layer;
+        drawnItems.addLayer(layer);
+    });
+
+    L.DomUtil.get('draw-option-fill').onchange = function (e) {
+        var opts = { shapeOptions: { fill: e.target.checked } };
+        drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+    };
+    L.DomUtil.get('draw-option-color').onchange = function (e) {
+        var opts = { shapeOptions: { fillColor: e.target.value, color: e.target.value } };
+        drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+    };
+    L.DomUtil.get('draw-option-stroke').onchange = function (e) {
+        var opts = { shapeOptions: { stroke: e.target.checked } };
+        drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+    };
+</script>
+
+</body>
+</html>
