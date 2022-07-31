@@ -11,8 +11,10 @@ import (
 	"github.com/protolambda/eth2api/client/beaconapi"
 	"github.com/protolambda/eth2api/client/configapi"
 	"github.com/protolambda/eth2api/client/debugapi"
+	"github.com/protolambda/zrnt/eth2/beacon"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/beacon/phase0"
+	"github.com/protolambda/ztyp/tree"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/urfave/cli"
 	"html/template"
@@ -33,20 +35,18 @@ type Server struct {
 	indexTempl     *template.Template
 
 	// beacon spec
-	spec *common.Spec
+	spec  *common.Spec
+	forks *beacon.ForkDecoder
 	// genesis info
 	genesis *eth2api.GenesisResponse
 	// initial randao value in the beacon state, spec seeds it with first recognized eth1 block hash
-	genesisRandao [32]byte
-
-	// track the last header we fully processed the chain up to, may be nil
-	lastHeader   *common.BeaconBlockHeader
-	lastProgress Progress
+	genesisRandao    [32]byte
+	genesisBlockRoot common.Root
 
 	// track the activation/exit of each validator, this may be nil
 	indicesBounded []common.BoundedIndex
 	// moment that indicesBounded were loaded from
-	indicesProgress Progress
+	indicesSlot common.Slot
 
 	remappings []ValidatorRemapping
 
@@ -110,7 +110,10 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		log.Info("Loaded genesis info")
 	}
 
+	forks := beacon.NewForkDecoder(&spec, genesis.GenesisValidatorsRoot)
+
 	var genesisRandao [32]byte
+	var genesisBlockRoot [32]byte
 	{
 		// unfortunately the standard API does not have a method of fetching
 		// the genesis eth1 block hash or randaovalue, so we just get the full genesis state.
@@ -126,6 +129,7 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		}
 		log.Info("Loaded genesis state")
 		genesisRandao = genesisState.RandaoMixes[0]
+		genesisBlockRoot = genesisState.LatestBlockHeader.HashTreeRoot(tree.GetHashFn())
 	}
 
 	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
@@ -150,9 +154,11 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		publicEndpoint: ctx.GlobalString(flags.PublicAPIFlag.Name),
 		indexTempl:     indexTempl,
 
-		spec:          &spec,
-		genesis:       &genesis,
-		genesisRandao: genesisRandao,
+		spec:             &spec,
+		forks:            forks,
+		genesis:          &genesis,
+		genesisRandao:    genesisRandao,
+		genesisBlockRoot: genesisBlockRoot,
 
 		beaconCl: cl,
 
@@ -204,13 +210,17 @@ func (s *Server) Run() {
 		}
 	}
 
-	// TODO: align with genesis time
-	slotTicker := time.NewTicker(time.Duration(s.spec.SECONDS_PER_SLOT) * time.Second)
+	// Every slot, aligned with genesis, with an offset of 2 seconds, we fire the ticker to check for new blocks.
+	slotDuration := time.Duration(s.spec.SECONDS_PER_SLOT) * time.Second
+	startTime := time.Unix(int64(s.genesis.GenesisTime)+2, 0)
+	tillPoll := slotDuration - (time.Since(startTime) % slotDuration)
+	slotTicker := time.NewTicker(tillPoll)
 	defer slotTicker.Stop()
 
 	for {
 		select {
 		case <-slotTicker.C:
+			slotTicker.Reset(slotDuration - (time.Since(startTime) % slotDuration)) // correct ticker period
 			reqSync()
 		case <-syncReqs:
 			if err := s.syncStep(); errors.Is(err, io.EOF) {

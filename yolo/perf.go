@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
+	"io"
 )
 
 const (
 	// KeyPerf is a:
-	// 4 byte prefix for per-epoch performance keying, followed by:
+	// 3 byte prefix for per-epoch performance keying, followed by:
 	// 8 byte big-endian epoch value. (big endian to make db byte-prefix iteration and range-slices follow epoch order)
 	//
 	// Values under this key are snappy block-compressed.
@@ -61,12 +64,14 @@ func (s *Server) processPrevEpoch(currEp common.Epoch) error {
 	}
 
 	// get all blocks in previous epoch
-	blocks := make([]*BlockData, s.spec.SLOTS_PER_EPOCH, s.spec.SLOTS_PER_EPOCH)
+	blocks := make([]*BlockData, 0, s.spec.SLOTS_PER_EPOCH)
 	for i := common.Slot(0); i < s.spec.SLOTS_PER_EPOCH; i++ {
-		if b, err := s.getBlock(prevStart + i); err != nil {
+		if b, err := s.getBlock(prevStart + i); err == ErrBlockNotFound {
+			continue
+		} else if err != nil {
 			return fmt.Errorf("failed to get block at slot %d: %v", prevStart+i, err)
 		} else {
-			blocks[i] = b
+			blocks = append(blocks, b)
 		}
 	}
 
@@ -88,6 +93,8 @@ func (s *Server) processPrevEpoch(currEp common.Epoch) error {
 	for i, _ := range validatorPerfs {
 		validatorPerfs[i] = ValidatorExists
 	}
+	// TODO: second perf array, in order of committees, so next stage doesn't deal with shuffling
+	///      and per slot / committee index, instead of per epoch
 
 	expectedTargetRoot := roots[0]
 
@@ -173,4 +180,68 @@ func (s *Server) getPerf(currEp common.Epoch) ([]ValidatorPerformance, error) {
 		perf[i/4] = ValidatorPerformance(binary.LittleEndian.Uint32(out[i : i+4]))
 	}
 	return perf, nil
+}
+
+func (s *Server) lastPerfEpoch() (common.Epoch, error) {
+	iter := s.blocks.NewIterator(util.BytesPrefix([]byte(KeyPerf)), nil)
+	defer iter.Release()
+	if iter.Last() {
+		epoch := common.Epoch(binary.BigEndian.Uint64(iter.Key()[3:]))
+		return epoch, nil
+	} else {
+		return 0, iter.Error()
+	}
+}
+
+func (s *Server) updatePerfMaybe() error {
+	blockSlot, _, err := s.lastBlock()
+	if err != nil {
+		return err
+	}
+	perfEpoch, err := s.lastPerfEpoch()
+	if err != nil {
+		return err
+	}
+	blockEpoch := s.spec.SlotToEpoch(blockSlot)
+	if blockEpoch > perfEpoch+1 {
+		return s.processPrevEpoch(perfEpoch + 1)
+	}
+	return io.EOF
+}
+
+func (s *Server) resetPerf(resetSlot common.Slot) error {
+	prevEpoch, err := s.lastPerfEpoch()
+	if err != nil {
+		return err
+	}
+	if prevEpoch < s.spec.SlotToEpoch(resetSlot) {
+		return nil
+	}
+
+	prefix := []byte(KeyPerf)
+	start := uint64(s.spec.SlotToEpoch(resetSlot)) + 1
+	end := uint64(prevEpoch) + 1
+
+	keyRange := &util.Range{
+		Start: make([]byte, 3+8),
+		Limit: make([]byte, 3+8),
+	}
+	copy(keyRange.Start[:3], prefix)
+	binary.BigEndian.PutUint64(keyRange.Start[3:], start)
+	copy(keyRange.Limit[:3], prefix)
+	binary.BigEndian.PutUint64(keyRange.Limit[3:], end)
+
+	iter := s.blocks.NewIterator(keyRange, nil)
+	defer iter.Release()
+
+	var batch leveldb.Batch
+	for iter.Next() {
+		batch.Delete(iter.Key())
+	}
+
+	if err := s.blocks.Write(&batch, nil); err != nil {
+		return fmt.Errorf("failed to cleanup conflicting perf mix data with key %v", err)
+	}
+
+	return nil
 }

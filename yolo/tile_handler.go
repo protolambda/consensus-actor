@@ -86,6 +86,8 @@ func (s *Server) handleImgRequest(tileType uint8) http.Handler {
 			w.WriteHeader(500)
 			return
 		}
+		// TODO: set cache policy based on coordinates
+
 		w.Header().Set("Content-Type", "image/png")
 		w.Write(buf.Bytes())
 		return

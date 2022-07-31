@@ -6,15 +6,19 @@ import (
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
+	"io"
 )
 
 const (
 	// KeyTile is a:
 	// 3 byte prefix for tile keying, followed by:
 	// 1 byte tile type
-	// 4 byte little endian X
-	// 4 byte little endian Y
 	// 1 byte zoom.
+	// 4 byte big endian X
+	// 4 byte big endian Y
+	//
+	// Note: the X is first, so the DB range iterate can range over epochs at zoom 0.
 	//
 	// Values under this key are snappy block-compressed.
 	//
@@ -31,14 +35,13 @@ func tileDbKey(tileType uint8, tX uint64, tY uint64, zoom uint8) []byte {
 	var key [3 + 1 + 4 + 4 + 1]byte
 	copy(key[:3], KeyTile)
 	key[3] = tileType
-	binary.LittleEndian.PutUint32(key[3+1:3+1+4], uint32(tX))
-	binary.LittleEndian.PutUint32(key[3+1+4:3+1+4+4], uint32(tY))
-	key[3+1+4+4] = zoom
+	key[4] = zoom
+	binary.BigEndian.PutUint32(key[3+1+1:3+1+1+4], uint32(tX))
+	binary.BigEndian.PutUint32(key[3+1+1+4:3+1+1+4+4], uint32(tY))
 	return key[:]
 }
 
-func (s *Server) performanceToTiles(tileType uint8, lastEpoch common.Epoch) error {
-	tX := uint64(lastEpoch) / tileSize
+func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 	maxValidators := uint64(len(s.indicesBounded))
 
 	tilesY := (maxValidators + tileSize - 1) / tileSize
@@ -109,15 +112,15 @@ func (s *Server) performanceToTiles(tileType uint8, lastEpoch common.Epoch) erro
 			tile := tiles[tY]
 			y := vi % tileSize
 			pos := 4 * (y*tileSize + x)
-			// max alpha
-			tile[pos] = 0xff
-			// black pixel
+			// transparent pixel
+			tile[pos] = 0
 			tile[pos+1] = 0
 			tile[pos+2] = 0
 			tile[pos+3] = 0
 		}
 	}
 	for tY, tile := range tiles {
+		// TODO more types
 		key := tileDbKey(tileType, tX, uint64(tY), 0)
 		// compress the tile image
 		tile = snappy.Encode(nil, tile)
@@ -128,7 +131,7 @@ func (s *Server) performanceToTiles(tileType uint8, lastEpoch common.Epoch) erro
 	return nil
 }
 
-func (s *Server) ConvTiles(tileType uint8, tX uint64, zoom uint8) error {
+func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 	maxValidators := uint64(len(s.indicesBounded))
 
 	tileSizeAbs := uint64(tileSize) << zoom
@@ -209,4 +212,95 @@ func (s *Server) ConvTiles(tileType uint8, tX uint64, zoom uint8) error {
 		}
 	}
 	return nil
+}
+
+func (s *Server) lastTileEpoch(tileType uint8) (common.Epoch, error) {
+	iter := s.blocks.NewIterator(util.BytesPrefix(append([]byte(KeyPerf), tileType, 0)), nil)
+	defer iter.Release()
+	if iter.Last() {
+		epoch := common.Epoch(binary.BigEndian.Uint32(iter.Key()[3+1+1 : 3+1+1+4]))
+		return epoch, nil
+	} else {
+		return 0, iter.Error()
+	}
+}
+
+func (s *Server) updateTilesMaybe() error {
+	lastTileEpoch, err := s.lastTileEpoch(0)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve last tile epoch: %v", err)
+	}
+	lastSlot, _, err := s.lastBlock()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve last block slot during tile update: %v", err)
+	}
+	lastBlockEpoch := s.spec.SlotToEpoch(lastSlot)
+	if lastTileEpoch == lastBlockEpoch {
+		return io.EOF
+	}
+
+	for tX := uint64(lastTileEpoch) / tileSize; tX <= uint64(lastBlockEpoch)/tileSize; tX++ {
+		if err := s.performanceToTiles(0, tX); err != nil {
+			return fmt.Errorf("failed to update zoom 0 tiles at tX %d: %v", tX, err)
+		}
+	}
+
+	for z := uint8(1); z <= maxZoom; z++ {
+		tileSizeAbs := uint64(tileSize) << z
+		tilesXStart := uint64(lastTileEpoch) / tileSizeAbs
+		tilesXEnd := (uint64(lastBlockEpoch) + tileSizeAbs - 1) / tileSizeAbs
+		for i := tilesXStart; i < tilesXEnd; i++ {
+			if err := s.convTiles(0, i, z); err != nil {
+				return fmt.Errorf("failed tile convolution layer at zoom %d tX %d: %v", z, i, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Server) resetTilesTyped(tileType uint8, resetSlot common.Slot) error {
+	resetEpoch := s.spec.SlotToEpoch(resetSlot)
+
+	lastEpoch, err := s.lastTileEpoch(tileType)
+	if err != nil {
+		return err
+	}
+
+	if resetEpoch > lastEpoch { // check if there's anything to reset
+		return nil
+	}
+
+	var batch leveldb.Batch
+	for z := uint8(0); z < maxZoom; z++ {
+		start := uint32(lastEpoch >> z)
+		end := uint32(resetEpoch >> z)
+		r := &util.Range{
+			Start: make([]byte, 3+1+1+4),
+			Limit: make([]byte, 3+1+1+4),
+		}
+		copy(r.Start[:3], KeyTile)
+		r.Start[3] = tileType
+		r.Start[3+1] = z
+		binary.BigEndian.PutUint32(r.Start[3+1+1:], start)
+
+		copy(r.Limit[:3], KeyTile)
+		r.Limit[3] = tileType
+		r.Limit[3+1] = z
+		binary.BigEndian.PutUint32(r.Limit[3+1+1:], end+1)
+
+		iter := s.blocks.NewIterator(r, nil)
+		for iter.Next() {
+			batch.Delete(iter.Key())
+		}
+		iter.Release()
+	}
+	if err := s.tiles.Write(&batch, nil); err != nil {
+		return fmt.Errorf("failed to remove tile data of type %d, resetting to slot %d: %v", tileType, resetSlot, err)
+	}
+	return nil
+}
+
+func (s *Server) resetTiles(resetSlot common.Slot) error {
+	// TODO more types
+	return s.resetTilesTyped(0, resetSlot)
 }
