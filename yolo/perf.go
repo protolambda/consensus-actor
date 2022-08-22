@@ -194,7 +194,7 @@ func (s *Server) lastPerfEpoch() (common.Epoch, error) {
 }
 
 func (s *Server) updatePerfMaybe() error {
-	blockSlot, _, err := s.lastBlock()
+	lastSlot, _, err := s.lastSlot()
 	if err != nil {
 		return err
 	}
@@ -202,8 +202,8 @@ func (s *Server) updatePerfMaybe() error {
 	if err != nil {
 		return err
 	}
-	blockEpoch := s.spec.SlotToEpoch(blockSlot)
-	if blockEpoch > perfEpoch+1 {
+	lastEpoch := s.spec.SlotToEpoch(lastSlot)
+	if lastEpoch > perfEpoch+1 {
 		return s.processPrevEpoch(perfEpoch + 1)
 	}
 	return io.EOF

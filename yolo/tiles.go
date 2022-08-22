@@ -230,7 +230,7 @@ func (s *Server) updateTilesMaybe() error {
 	if err != nil {
 		return fmt.Errorf("failed to retrieve last tile epoch: %v", err)
 	}
-	lastSlot, _, err := s.lastBlock()
+	lastSlot, _, err := s.lastSlot()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve last block slot during tile update: %v", err)
 	}

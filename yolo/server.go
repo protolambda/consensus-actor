@@ -31,6 +31,7 @@ type Server struct {
 
 	listenAddr string
 
+	title          string
 	publicEndpoint string
 	indexTempl     *template.Template
 
@@ -47,8 +48,6 @@ type Server struct {
 	indicesBounded []common.BoundedIndex
 	// moment that indicesBounded were loaded from
 	indicesSlot common.Slot
-
-	remappings []ValidatorRemapping
 
 	blocks *leveldb.DB // blocks importing and blocks transform into
 	perf   *leveldb.DB // performance per epoch
@@ -129,14 +128,16 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		}
 		log.Info("Loaded genesis state")
 		genesisRandao = genesisState.RandaoMixes[0]
-		genesisBlockRoot = genesisState.LatestBlockHeader.HashTreeRoot(tree.GetHashFn())
+		headerCopy := genesisState.LatestBlockHeader
+		headerCopy.StateRoot = genesisState.HashTreeRoot(&spec, tree.GetHashFn())
+		genesisBlockRoot = headerCopy.HashTreeRoot(tree.GetHashFn())
 	}
 
 	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}
-	if err := os.MkdirAll(baseDir, 644); err != nil {
+	if err := os.MkdirAll(baseDir, 755); err != nil {
 		return nil, fmt.Errorf("failed to prepare base data dir: %v", err)
 	}
 
@@ -151,6 +152,7 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		log: log,
 
 		listenAddr:     listenAddr,
+		title:          ctx.GlobalString(flags.SiteTitleFlag.Name),
 		publicEndpoint: ctx.GlobalString(flags.PublicAPIFlag.Name),
 		indexTempl:     indexTempl,
 
@@ -165,7 +167,7 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		ctx:    bgCtx,
 		cancel: cancel,
 
-		close: make(chan chan error),
+		close: make(chan chan error, 1),
 	}
 
 	// load dbs, and make sure to close whatever is already open if something fails.
@@ -200,7 +202,7 @@ func (s *Server) Close() error {
 func (s *Server) Run() {
 	s.startHttpServer()
 
-	syncReqs := make(chan struct{})
+	syncReqs := make(chan struct{}, 1)
 
 	reqSync := func() {
 		select {
@@ -217,6 +219,8 @@ func (s *Server) Run() {
 	slotTicker := time.NewTicker(tillPoll)
 	defer slotTicker.Stop()
 
+	reqSync()
+
 	for {
 		select {
 		case <-slotTicker.C:
@@ -224,15 +228,15 @@ func (s *Server) Run() {
 			reqSync()
 		case <-syncReqs:
 			if err := s.syncStep(); errors.Is(err, io.EOF) {
-				// done syncing
+				s.log.Info("done syncing")
 				break
 			} else if err != nil {
-				// log
+				s.log.Error("failed sync step", "err", err)
 			} else {
 				reqSync()
 			}
 		case closer := <-s.close:
-			var result *multierror.Error
+			var result error
 			if err := s.srv.Close(); err != nil {
 				result = multierror.Append(result, err)
 			}

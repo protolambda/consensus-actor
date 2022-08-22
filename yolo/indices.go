@@ -11,18 +11,18 @@ import (
 )
 
 func (s *Server) updateIndicesBoundedDataMaybe() error {
-	blockSlot, _, err := s.lastBlock()
+	lastSlot, _, err := s.lastSlot()
 	if err != nil {
 		return err
 	}
 
 	if s.indicesBounded != nil {
 		// check if we are up to date
-		blockEpoch := s.spec.SlotToEpoch(blockSlot)
+		lastEpoch := s.spec.SlotToEpoch(lastSlot)
 		indicesEpoch := s.spec.SlotToEpoch(s.indicesSlot)
 
 		// only update the indices data when the epoch changes, or when there's a reorg (resetIndicesBounded() will be called)
-		if blockEpoch == indicesEpoch {
+		if lastEpoch == indicesEpoch {
 			return io.EOF
 		}
 	}
@@ -52,8 +52,9 @@ func (s *Server) updateIndicesBoundedDataMaybe() error {
 	}
 
 	s.indicesBounded = indices
-	s.indicesSlot = blockSlot
+	s.indicesSlot = lastSlot
 
+	s.log.Info("updated bounded validator indices", "slot", lastSlot)
 	return nil
 }
 

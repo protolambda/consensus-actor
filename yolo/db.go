@@ -39,10 +39,7 @@ func openDB(file string, readonly bool, cache int) (*leveldb.DB, error) {
 }
 
 func (s *Server) loadBlocksDB(baseDir string, ctx *cli.Context) error {
-	blocksPath, err := filepath.Rel(baseDir, ctx.GlobalString(flags.DataBlocksDBFlag.Name))
-	if err != nil {
-		blocksPath = ctx.GlobalString(flags.DataBlocksDBFlag.Name)
-	}
+	blocksPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataBlocksDBFlag.Name))
 	if blocksPath == "" {
 		return fmt.Errorf("need blocks db path")
 	}
@@ -55,10 +52,7 @@ func (s *Server) loadBlocksDB(baseDir string, ctx *cli.Context) error {
 }
 
 func (s *Server) loadPerfDB(baseDir string, ctx *cli.Context) error {
-	perfPath, err := filepath.Rel(baseDir, ctx.GlobalString(flags.DataPerfDBFlag.Name))
-	if err != nil {
-		perfPath = ctx.GlobalString(flags.DataPerfDBFlag.Name)
-	}
+	perfPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataPerfDBFlag.Name))
 	if perfPath == "" {
 		return fmt.Errorf("need perf db path")
 	}
@@ -71,10 +65,7 @@ func (s *Server) loadPerfDB(baseDir string, ctx *cli.Context) error {
 }
 
 func (s *Server) loadTilesDB(baseDir string, ctx *cli.Context) error {
-	tilesPath, err := filepath.Rel(baseDir, ctx.GlobalString(flags.DataTilesDBFlag.Name))
-	if err != nil {
-		tilesPath = ctx.GlobalString(flags.DataTilesDBFlag.Name)
-	}
+	tilesPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataTilesDBFlag.Name))
 	if tilesPath == "" {
 		return fmt.Errorf("need tiles db path")
 	}
@@ -95,7 +86,7 @@ func (s *Server) closeDBs() error {
 	defer s.perfLock.Unlock()
 	defer s.tilesLock.Unlock()
 
-	var result *multierror.Error
+	var result error
 	if s.blocks != nil {
 		if err := s.blocks.Close(); err != nil {
 			result = multierror.Append(result, err)

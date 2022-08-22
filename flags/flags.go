@@ -45,6 +45,12 @@ var (
 		EnvVar: prefixEnvVar("HTTP_PORT"),
 		Value:  8080,
 	}
+	SiteTitleFlag = cli.StringFlag{
+		Name:   "site.title",
+		Usage:  "Title to put in webpage.",
+		EnvVar: prefixEnvVar("SITE_TITLE"),
+		Value:  "Mainnet | consensus.actor",
+	}
 	PublicAPIFlag = cli.StringFlag{
 		Name:   "public.api",
 		Usage:  "Http endpoint for frontend to talk to server with. Empty if the same server.",
@@ -83,6 +89,7 @@ var Flags = []cli.Flag{
 	DataTilesDBFlag,
 	HttpAddrFlag,
 	HttpPortFlag,
+	SiteTitleFlag,
 	PublicAPIFlag,
 	BeaconAPIAddrFlag,
 	LogLevelFlag,

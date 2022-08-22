@@ -19,7 +19,7 @@ const (
 )
 
 func (s *Server) updateRandaoMaybe() error {
-	blockSlot, _, err := s.lastBlock()
+	lastSlot, _, err := s.lastSlot()
 	if err != nil {
 		return fmt.Errorf("failed to get block progress for randao update check: %v", err)
 	}
@@ -31,7 +31,7 @@ func (s *Server) updateRandaoMaybe() error {
 	// go to next epoch
 	epoch += 1
 
-	blocksEpoch := s.spec.SlotToEpoch(blockSlot)
+	blocksEpoch := s.spec.SlotToEpoch(lastSlot)
 
 	// check if there are enough new blocks to update an epoch
 	if epoch < blocksEpoch {
@@ -69,6 +69,7 @@ func (s *Server) updateRandaoMaybe() error {
 	if err := s.blocks.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to write randao mix of epoch %d to db: %v", epoch, err)
 	}
+	s.log.Info("updated randao mixes", "epoch", epoch)
 	return nil
 }
 

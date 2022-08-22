@@ -13,14 +13,15 @@ var indexFile embed.FS
 
 // IndexData is the Go html template input for index.html
 type IndexData struct {
-	API string
+	Title string
+	API   string
 }
 
 func (s *Server) startHttpServer() {
 	var mux http.ServeMux
 	mux.Handle("/validator-order", http.StripPrefix("/tile", s.handleImgRequest(0)))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := s.indexTempl.Execute(w, &IndexData{API: s.publicEndpoint})
+		err := s.indexTempl.Execute(w, &IndexData{Title: s.title, API: s.publicEndpoint})
 		if err != nil {
 			s.log.Error("failed to serve index.html page", "err", err)
 		}

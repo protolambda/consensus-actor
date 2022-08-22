@@ -82,4 +82,5 @@ func ServerMain(ctx *cli.Context) {
 	if err := server.Close(); err != nil {
 		logger.Crit("shutdown error", "err", err) // os exit 1
 	}
+	logger.Info("goodbye")
 }

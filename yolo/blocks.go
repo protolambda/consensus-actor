@@ -15,7 +15,6 @@ import (
 	"github.com/protolambda/ztyp/codec"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"io"
 	"time"
 )
 
@@ -116,7 +115,7 @@ func (s *Server) getBlockRoot(slot common.Slot) (common.Root, error) {
 	return *(*[32]byte)(root), nil
 }
 
-func (s *Server) lastBlock() (common.Slot, common.Root, error) {
+func (s *Server) lastSlot() (common.Slot, common.Root, error) {
 	blockIter := s.blocks.NewIterator(util.BytesPrefix([]byte(KeyBlockRoot)), nil)
 	// big-endian slot number, last key is highest slot block we have
 	if blockIter.Last() { // if we have a block, get it
@@ -136,7 +135,7 @@ func (s *Server) lastBlock() (common.Slot, common.Root, error) {
 }
 
 func (s *Server) updateBlocksMaybe() error {
-	lastSlot, lastBlockRoot, err := s.lastBlock()
+	lastSlot, lastBlockRoot, err := s.lastSlot()
 	if err != nil {
 		return fmt.Errorf("cannot start importing blocks without block progress info: %v", err)
 	}
@@ -144,25 +143,33 @@ func (s *Server) updateBlocksMaybe() error {
 	commonBlockRoot := lastBlockRoot
 	// walk back until we are on the canonical chain (instant if already on the canonical chain)
 	for slot := lastSlot; slot > 0; slot-- {
-		ctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
-		remoteRoot, exists, err := beaconapi.BlockRoot(ctx, s.beaconCl, eth2api.BlockIdSlot(slot))
-		cancel()
-		if err != nil {
-			return fmt.Errorf("failed to fetch next beacon block root at slot %d: %v", slot, err)
-		} else if !exists {
-			return io.EOF // if there are no more block roots, then we're done importing blocks for now
-		}
+
 		localRoot, err := s.getBlockRoot(slot)
 		if err == ErrBlockNotFound {
 			continue
 		} else if err != nil {
 			return fmt.Errorf("failed to fetch local block root from db at slot %d: %v", slot, err)
 		}
-		if remoteRoot == localRoot { // did we find a common block root?
-			commonSlot = slot
-			commonBlockRoot = localRoot
-			break
+
+		ctx, cancel := context.WithTimeout(s.ctx, time.Second*10)
+		remoteRoot, exists, err := beaconapi.BlockRoot(ctx, s.beaconCl, eth2api.BlockIdSlot(slot))
+		cancel()
+		if err != nil {
+			return fmt.Errorf("failed to fetch next beacon block root at slot %d: %v", slot, err)
+		} else if !exists {
+			// if the remote root does not exist (e.g. gap slot), then continue traversing back further,
+			// but allow commonSlot to stay the way it is
+			continue
 		}
+
+		if remoteRoot != localRoot {
+			// if the roots are different, traverse back further, and reset back commonSlot
+			commonSlot = slot - 1
+			continue
+		}
+
+		commonBlockRoot = localRoot
+		break
 	}
 	// if we had to rewind back to handle a reorg, then reset any invalidated processing work
 	if commonSlot < lastSlot {
@@ -193,6 +200,7 @@ func (s *Server) updateBlocksMaybe() error {
 	var dest eth2api.VersionedSignedBeaconBlock
 	exists, err := beaconapi.BlockV2(ctx, s.beaconCl, eth2api.BlockIdSlot(nextSlot), &dest)
 	cancel()
+
 	if err != nil {
 		return fmt.Errorf("failed to fetch beacon block at slot %d: %v", nextSlot, err)
 	} else if !exists {
@@ -238,6 +246,7 @@ func (s *Server) updateBlocksMaybe() error {
 	if err := s.blocks.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to import new block %s at slot %d: %v", block.BlockRoot, block.Slot, err)
 	}
+	s.log.Info("imported block", "slot", block.Slot)
 	return nil
 }
 
