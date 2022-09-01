@@ -125,6 +125,10 @@ func (s *Importer) Close() error {
 }
 
 func (s *Importer) Run(ctx context.Context) error {
+	if s.endSlot < s.startSlot {
+		return fmt.Errorf("end slot cannot be lower than start slot: %d < %d", s.endSlot, s.startSlot)
+	}
+
 	iter := s.lhFreezer.NewIterator(util.BytesPrefix([]byte(lhBeaconBlockRootsPrefix)), nil)
 	defer iter.Release()
 	{
@@ -138,6 +142,10 @@ func (s *Importer) Run(ctx context.Context) error {
 		}
 	}
 
+	s.log.Info("starting import", "start_slot", s.startSlot, "end_slot", s.endSlot)
+
+	gapSlots := 0
+
 	for iter.Next() {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -149,9 +157,6 @@ func (s *Importer) Run(ctx context.Context) error {
 		}
 		value := iter.Value()
 		slot := common.Slot((keyInt - 1) * 128)
-		if slot%1000 == 0 {
-			s.log.Info("importing blocks from lighthouse db", "slot", slot)
-		}
 
 		var tmpKey [3 + 32]byte
 		copy(tmpKey[:3], lhBeaconBlocksPrefix)
@@ -170,8 +175,34 @@ func (s *Importer) Run(ctx context.Context) error {
 				slot += 1
 				continue
 			}
+			progress := slot - s.startSlot
+			if progress%1000 == 0 {
+				s.log.Info("importing blocks from lighthouse db", "progress", progress, "slot", slot, "gaps", gapSlots)
+			}
 			if slot >= s.endSlot {
 				break
+			}
+
+			// init prevRoot if we need to
+			if prevRoot == ([32]byte{}) {
+				// parent hash of genesis has a special batch entry
+				var batchIndex, rootIndex uint64
+				if slot == 0 {
+					batchIndex = 0
+					rootIndex = 0
+				} else {
+					batchIndex = (uint64(slot-1) / 128) + 1
+					rootIndex = uint64(slot-1) % 128
+				}
+
+				var tmp [3 + 8]byte
+				copy(tmp[:3], lhBeaconBlockRootsPrefix)
+				binary.BigEndian.PutUint64(tmp[3:], batchIndex)
+				b, err := s.lhFreezer.Get(tmp[:], nil)
+				if err != nil {
+					return fmt.Errorf("failed to read block roots batch from db to find prev block root at batch %d: %w", batchIndex, err)
+				}
+				copy(prevRoot[:], b[rootIndex*32:rootIndex*32+32])
 			}
 
 			root := value[i*32 : i*32+32]
@@ -182,6 +213,7 @@ func (s *Importer) Run(ctx context.Context) error {
 			if bytes.Equal(prevRoot[:], root) {
 				// gap block
 				slot += 1
+				gapSlots += 1
 				continue
 			}
 
@@ -194,6 +226,8 @@ func (s *Importer) Run(ctx context.Context) error {
 			b.Put(outKeyBlock[:], blockContents)
 
 			slot += 1
+
+			copy(prevRoot[:], root)
 		}
 
 		if err := s.blocks.Write(b, nil); err != nil {
