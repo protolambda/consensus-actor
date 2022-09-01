@@ -2,6 +2,8 @@ package yolo
 
 import (
 	"fmt"
+	"path/filepath"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/protolambda/consensus-actor/flags"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -9,7 +11,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/urfave/cli"
-	"path/filepath"
 )
 
 // opens a level DB.
@@ -45,7 +46,7 @@ func (s *Server) loadBlocksDB(baseDir string, ctx *cli.Context) error {
 	}
 	blocks, err := openDB(blocksPath, false, 20)
 	if err != nil {
-		return fmt.Errorf("failed to open blocks db: %v", err)
+		return fmt.Errorf("failed to open blocks db %q: %w", blocksPath, err)
 	}
 	s.blocks = blocks
 	return nil
@@ -58,7 +59,7 @@ func (s *Server) loadPerfDB(baseDir string, ctx *cli.Context) error {
 	}
 	perf, err := openDB(perfPath, false, 20)
 	if err != nil {
-		return fmt.Errorf("failed to open perf db: %v", err)
+		return fmt.Errorf("failed to open perf db %q: %w", perfPath, err)
 	}
 	s.perf = perf
 	return nil
@@ -71,7 +72,7 @@ func (s *Server) loadTilesDB(baseDir string, ctx *cli.Context) error {
 	}
 	tiles, err := openDB(tilesPath, false, 20)
 	if err != nil {
-		return fmt.Errorf("failed to open tiles db: %v", err)
+		return fmt.Errorf("failed to open tiles db %q: %w", tilesPath, err)
 	}
 	s.tiles = tiles
 	return nil

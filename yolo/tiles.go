@@ -3,11 +3,12 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
+
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"io"
 )
 
 const (
@@ -47,10 +48,10 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 	tilesY := (maxValidators + tileSize - 1) / tileSize
 	// each tile is an array of 4 byte items. tileSize consecutive of those form a row, and then tileSize rows.
 	// RGBA
-	tiles := make([][]byte, tilesY, tilesY)
+	tiles := make([][]byte, tilesY)
 	tileBytes := 4 * tileSize * tileSize
 	for tY := uint64(0); tY < tilesY; tY++ {
-		tiles[tY] = make([]byte, tileBytes, tileBytes)
+		tiles[tY] = make([]byte, tileBytes)
 	}
 	for x := uint64(0); x < tileSize; x++ {
 		epoch := common.Epoch(tX*tileSize + x)
@@ -147,7 +148,7 @@ func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 			tile, err := s.tiles.Get(key, nil)
 			if err == leveldb.ErrNotFound {
 				// use empty tile instead
-				tile = make([]byte, 4*tileSize*tileSize, 4*tileSize*tileSize)
+				tile = make([]byte, 4*tileSize*tileSize)
 				return tile, nil
 			} else if err != nil {
 				return nil, fmt.Errorf("failed to get top left of (%d; %d): %v", tX, tY, err)
@@ -172,7 +173,7 @@ func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 			return err
 		}
 
-		outTile := make([]byte, 4*tileSize*tileSize, 4*tileSize*tileSize)
+		outTile := make([]byte, 4*tileSize*tileSize)
 		mix := func(a, b, c, d byte) byte {
 			return uint8((uint16(a) + uint16(b) + uint16(c) + uint16(d)) / 4)
 		}

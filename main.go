@@ -1,28 +1,44 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/protolambda/consensus-actor/flags"
-	"github.com/protolambda/consensus-actor/yolo"
-	"github.com/urfave/cli"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/protolambda/consensus-actor/flags"
+	"github.com/protolambda/consensus-actor/yolo"
+	"github.com/urfave/cli"
 )
 
 func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 
 	app := cli.NewApp()
-	app.Flags = flags.Flags
+	app.Flags = flags.GlobalFlags
 	app.Version = "0.0.1"
 	app.Name = "consensus-actor"
-	app.Usage = "Start consensus actor analysis server"
-	app.Description = "Spins up a server that loads block data, processes it, builds tiles, and serves a large-scale map of consensus actor behavior."
-
-	app.Action = ServerMain
+	app.Usage = "Consensus actor analysis tool by @protolambda"
+	app.Description = "Build and serve a maps-like view of the consensus actor data of ethereum."
+	app.Commands = []cli.Command{
+		{
+			Name:        "import",
+			Usage:       "Import blocks from Lighthouse",
+			Description: "Imports blocks from a lighthouse DB (db must not be locked, i.e. lighthouse must not be running).",
+			Action:      ImportMain,
+			Flags:       flags.ImportFlags,
+		},
+		{
+			Name:        "server",
+			Usage:       "Serve app and sync live data",
+			Description: "Spins up a server that loads block data, processes it, builds tiles, and serves a large-scale map of consensus actor behavior.",
+			Action:      ServerMain,
+			Flags:       flags.ServerFlags,
+		},
+	}
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Failed to start server", "err", err)
@@ -55,6 +71,50 @@ func SetupLogger(ctx *cli.Context) (log.Logger, error) {
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger, nil
+}
+
+func ImportMain(clictx *cli.Context) {
+	logger, err := SetupLogger(clictx)
+	if err != nil {
+		log.Crit("failed to setup logger", "err", err) // os exit 1
+		return
+	}
+	imp, err := yolo.NewImporter(clictx, logger)
+	if err != nil {
+		logger.Crit("failed to create importer", "err", err) // os exit 1
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan error)
+	go func() {
+		err := imp.Run(ctx)
+		runDone <- err
+	}()
+
+	interruptChannel := make(chan os.Signal, 1)
+	signal.Notify(interruptChannel, []os.Signal{
+		os.Interrupt,
+		os.Kill,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	}...)
+	go func() {
+		<-interruptChannel
+		logger.Info("closing on interrupt signal")
+		cancel()
+	}()
+
+	err = <-runDone
+	if err != nil {
+		logger.Error("stopped import with error", "err", err)
+	} else {
+		logger.Info("import completed")
+	}
+
+	if err := imp.Close(); err != nil {
+		logger.Crit("shutdown error", "err", err) // os exit 1
+	}
+	logger.Info("goodbye")
 }
 
 func ServerMain(ctx *cli.Context) {

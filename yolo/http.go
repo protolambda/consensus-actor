@@ -36,8 +36,7 @@ func (s *Server) startHttpServer() {
 		IdleTimeout:       time.Second * 10,
 		MaxHeaderBytes:    10_000,
 		BaseContext: func(net.Listener) context.Context {
-			ctx, _ := context.WithTimeout(s.ctx, time.Second*7)
-			return ctx
+			return s.ctx
 		},
 	}
 

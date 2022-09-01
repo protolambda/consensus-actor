@@ -3,11 +3,12 @@ package yolo
 import (
 	"context"
 	"fmt"
+	"io"
+	"time"
+
 	"github.com/protolambda/eth2api"
 	"github.com/protolambda/eth2api/client/beaconapi"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
-	"io"
-	"time"
 )
 
 func (s *Server) updateIndicesBoundedDataMaybe() error {
@@ -32,12 +33,13 @@ func (s *Server) updateIndicesBoundedDataMaybe() error {
 	ctx, cancel := context.WithTimeout(s.ctx, time.Second*30)
 	var resp []eth2api.ValidatorResponse
 
-	if exists, err := beaconapi.StateValidators(ctx, s.beaconCl, eth2api.StateHead, nil, nil, &resp); err != nil {
+	exists, err := beaconapi.StateValidators(ctx, s.beaconCl, eth2api.StateHead, nil, nil, &resp)
+	cancel()
+	if err != nil {
 		return fmt.Errorf("failed to fetch validators data: %v", err)
 	} else if !exists {
 		return fmt.Errorf("validators data not available: %v", err)
 	}
-	cancel()
 
 	indices := make([]common.BoundedIndex, len(resp))
 	for i, v := range resp {

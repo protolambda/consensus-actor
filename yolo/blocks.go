@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/protolambda/eth2api"
 	"github.com/protolambda/eth2api/client/beaconapi"
 	"github.com/protolambda/zrnt/eth2/beacon/altair"
@@ -15,7 +17,6 @@ import (
 	"github.com/protolambda/ztyp/codec"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"time"
 )
 
 const (
@@ -24,6 +25,10 @@ const (
 	// 8 byte big-endian slot number
 	//
 	// The value is a SSZ-encoded beacon block (no compression).
+	// Depending on the slot, different block types may be encoded:
+	// phase.SignedBeaconBlock
+	// altair.SignedBeaconBlock
+	// SignedBeaconBlockLH (bellatrix, blinded execution payload, aka just the execution payload header)
 	//
 	// Some blocks may be missing.
 	KeyBlock string = "blk"

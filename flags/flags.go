@@ -8,6 +8,7 @@ func prefixEnvVar(name string) string {
 	return envVarPrefix + name
 }
 
+// global flags
 var (
 	DataDirFlag = cli.StringFlag{
 		Name:   "data.dir",
@@ -33,6 +34,34 @@ var (
 		EnvVar: prefixEnvVar("DATA_TILES"),
 		Value:  "tiles",
 	}
+	LogLevelFlag = cli.StringFlag{
+		Name:   "log.level",
+		Usage:  "The lowest log level that will be output",
+		Value:  "info",
+		EnvVar: prefixEnvVar("LOG_LEVEL"),
+	}
+	LogFormatFlag = cli.StringFlag{
+		Name:   "log.format",
+		Usage:  "Format the log output. Supported formats: 'text', 'json'",
+		Value:  "text",
+		EnvVar: prefixEnvVar("LOG_FORMAT"),
+	}
+	LogColorFlag = cli.BoolFlag{
+		Name:   "log.color",
+		Usage:  "Color the log output",
+		EnvVar: prefixEnvVar("LOG_COLOR"),
+	}
+)
+
+var GlobalFlags = []cli.Flag{
+	DataDirFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
+}
+
+// server flags
+var (
 	HttpAddrFlag = cli.StringFlag{
 		Name:   "http.addr",
 		Usage:  "Address to bind http server to",
@@ -63,26 +92,9 @@ var (
 		EnvVar: prefixEnvVar("BEACON_API"),
 		Value:  "http://localhost:5052",
 	}
-	LogLevelFlag = cli.StringFlag{
-		Name:   "log.level",
-		Usage:  "The lowest log level that will be output",
-		Value:  "info",
-		EnvVar: prefixEnvVar("LOG_LEVEL"),
-	}
-	LogFormatFlag = cli.StringFlag{
-		Name:   "log.format",
-		Usage:  "Format the log output. Supported formats: 'text', 'json'",
-		Value:  "text",
-		EnvVar: prefixEnvVar("LOG_FORMAT"),
-	}
-	LogColorFlag = cli.BoolFlag{
-		Name:   "log.color",
-		Usage:  "Color the log output",
-		EnvVar: prefixEnvVar("LOG_COLOR"),
-	}
 )
 
-var Flags = []cli.Flag{
+var ServerFlags = []cli.Flag{
 	DataDirFlag,
 	DataBlocksDBFlag,
 	DataPerfDBFlag,
@@ -95,4 +107,40 @@ var Flags = []cli.Flag{
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
+}
+
+// import flags
+var (
+	ImportLighthouseChainFlag = cli.StringFlag{
+		Name:     "import.lighthouse.chain",
+		Usage:    "Path to lighthouse chain leveldb dir.",
+		EnvVar:   prefixEnvVar("IMPORT_LIGHTHOUSE_CHAIN"),
+		Required: true,
+	}
+	ImportLighthouseFreezerFlag = cli.StringFlag{
+		Name:     "import.lighthouse.freezer",
+		Usage:    "Path to lighthouse freezer leveldb dir.",
+		EnvVar:   prefixEnvVar("IMPORT_LIGHTHOUSE_FREEZER"),
+		Required: true,
+	}
+	ImportStartSlotFlag = cli.Uint64Flag{
+		Name:   "import.startslot",
+		Usage:  "Start slot (inclusive) of block import",
+		EnvVar: prefixEnvVar("IMPORT_START_SLOT"),
+		Value:  uint64(0),
+	}
+	ImportEndSlotFlag = cli.Uint64Flag{
+		Name:   "import.endslot",
+		Usage:  "End slot (exclusive) of block import",
+		EnvVar: prefixEnvVar("IMPORT_END_SLOT"),
+		Value:  ^uint64(0),
+	}
+)
+
+var ImportFlags = []cli.Flag{
+	DataBlocksDBFlag,
+	ImportLighthouseChainFlag,
+	ImportLighthouseFreezerFlag,
+	ImportStartSlotFlag,
+	ImportEndSlotFlag,
 }

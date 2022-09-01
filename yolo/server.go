@@ -4,6 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
 	"github.com/protolambda/consensus-actor/flags"
@@ -17,13 +25,6 @@ import (
 	"github.com/protolambda/ztyp/tree"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/urfave/cli"
-	"html/template"
-	"io"
-	"net"
-	"net/http"
-	"os"
-	"sync"
-	"time"
 )
 
 type Server struct {
@@ -74,7 +75,7 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		return nil, fmt.Errorf("failed to load index.html template: %v", err)
 	}
 
-	apiAddr := ctx.GlobalString(flags.BeaconAPIAddrFlag.Name)
+	apiAddr := ctx.String(flags.BeaconAPIAddrFlag.Name)
 	if apiAddr == "" {
 		return nil, fmt.Errorf("need beacon API address")
 	}
@@ -137,23 +138,23 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}
-	if err := os.MkdirAll(baseDir, 755); err != nil {
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to prepare base data dir: %v", err)
 	}
 
-	listenPort := ctx.GlobalInt(flags.HttpPortFlag.Name)
+	listenPort := ctx.Int(flags.HttpPortFlag.Name)
 	if listenPort < 0 || listenPort > int(^uint16(0)) {
 		return nil, fmt.Errorf("invalid listen port: %d", listenPort)
 	}
-	listenAddr := net.JoinHostPort(ctx.GlobalString(flags.HttpAddrFlag.Name), fmt.Sprintf("%d", listenPort))
+	listenAddr := net.JoinHostPort(ctx.String(flags.HttpAddrFlag.Name), fmt.Sprintf("%d", listenPort))
 
 	bgCtx, cancel := context.WithCancel(context.Background())
 	srv := &Server{
 		log: log,
 
 		listenAddr:     listenAddr,
-		title:          ctx.GlobalString(flags.SiteTitleFlag.Name),
-		publicEndpoint: ctx.GlobalString(flags.PublicAPIFlag.Name),
+		title:          ctx.String(flags.SiteTitleFlag.Name),
+		publicEndpoint: ctx.String(flags.PublicAPIFlag.Name),
 		indexTempl:     indexTempl,
 
 		spec:             &spec,

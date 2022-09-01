@@ -1,9 +1,10 @@
 package yolo
 
 import (
-	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"io"
 	"time"
+
+	"github.com/protolambda/zrnt/eth2/beacon/common"
 )
 
 func (s *Server) WallClockSlot() common.Slot {

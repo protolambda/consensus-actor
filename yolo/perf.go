@@ -3,11 +3,12 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
+
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"io"
 )
 
 const (
@@ -48,6 +49,9 @@ func (s *Server) processPrevEpoch(currEp common.Epoch) error {
 	// clips to start
 	prevEp := currEp.Previous()
 	prevStart, err := s.spec.EpochStartSlot(prevEp)
+	if err != nil {
+		return fmt.Errorf("bad epoch start slot of prev epoch: %w", err)
+	}
 
 	count := s.spec.SLOTS_PER_EPOCH
 	if currEp != 0 {
@@ -89,8 +93,8 @@ func (s *Server) processPrevEpoch(currEp common.Epoch) error {
 		}
 	}
 	// per validator, track who was already included for work this epoch
-	validatorPerfs := make([]ValidatorPerformance, maxValidatorIndex+1, maxValidatorIndex+1)
-	for i, _ := range validatorPerfs {
+	validatorPerfs := make([]ValidatorPerformance, maxValidatorIndex+1)
+	for i := range validatorPerfs {
 		validatorPerfs[i] = ValidatorExists
 	}
 	// TODO: second perf array, in order of committees, so next stage doesn't deal with shuffling
@@ -146,7 +150,7 @@ func (s *Server) processPrevEpoch(currEp common.Epoch) error {
 			}
 		}
 	}
-	out := make([]byte, len(validatorPerfs)*4, len(validatorPerfs)*4)
+	out := make([]byte, len(validatorPerfs)*4)
 	for i, v := range validatorPerfs {
 		binary.LittleEndian.PutUint32(out[i*4:i*4+4], uint32(v))
 	}
@@ -175,7 +179,7 @@ func (s *Server) getPerf(currEp common.Epoch) ([]ValidatorPerformance, error) {
 	if err != nil {
 		return nil, err
 	}
-	perf := make([]ValidatorPerformance, len(out)/4, len(out)/4)
+	perf := make([]ValidatorPerformance, len(out)/4)
 	for i := 0; i < len(out); i += 4 {
 		perf[i/4] = ValidatorPerformance(binary.LittleEndian.Uint32(out[i : i+4]))
 	}

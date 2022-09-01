@@ -3,6 +3,7 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/util/hashing"
 	"github.com/syndtr/goleveldb/leveldb"
