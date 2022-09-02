@@ -43,6 +43,7 @@ func tileDbKey(tileType uint8, tX uint64, tY uint64, zoom uint8) []byte {
 }
 
 func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
+	s.log.Info("updating tile column", "type", tileType, "tX", tX, "zoom", 0)
 	maxValidators := uint64(len(s.indicesBounded))
 
 	tilesY := (maxValidators + tileSize - 1) / tileSize
@@ -68,10 +69,10 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 		for vi, vPerf := range perf {
 			tY := uint64(vi) / tileSize
 			tile := tiles[tY]
-			tileR := tile[:tileSize]
-			tileG := tile[tileSize : tileSize*2]
-			tileB := tile[tileSize*2 : tileSize*3]
-			tileA := tile[tileSize*3:]
+			tileR := tile[:tileSizeSquared]
+			tileG := tile[tileSizeSquared : tileSizeSquared*2]
+			tileB := tile[tileSizeSquared*2 : tileSizeSquared*3]
+			tileA := tile[tileSizeSquared*3:]
 
 			y := uint64(vi) % tileSize
 			pos := x*tileSize + y
@@ -116,10 +117,10 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 		for vi := uint64(len(perf)); vi < maxValidators; vi++ {
 			tY := vi / tileSize
 			tile := tiles[tY]
-			tileR := tile[:tileSize]
-			tileG := tile[tileSize : tileSize*2]
-			tileB := tile[tileSize*2 : tileSize*3]
-			tileA := tile[tileSize*3:]
+			tileR := tile[:tileSizeSquared]
+			tileG := tile[tileSizeSquared : tileSizeSquared*2]
+			tileB := tile[tileSizeSquared*2 : tileSizeSquared*3]
+			tileA := tile[tileSizeSquared*3:]
 
 			y := vi % tileSize
 			pos := x*tileSize + y
@@ -194,10 +195,10 @@ func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 			for x := uint64(0); x < tileSize/2; x++ {
 				for y := uint64(0); y < tileSize/2; y++ {
 					// top left, top right, bottom left, bottom right
-					p0 := y*2*tileSize + x*2
-					p1 := p0 + 1
-					p2 := p0 + tileSize
-					p3 := p2 + 1
+					p0 := x*2*tileSize + y*2
+					p1 := p0 + tileSize
+					p2 := p0 + 1
+					p3 := p2 + tileSize
 
 					r0, r1, r2, r3 := inTile[p0], inTile[p1], inTile[p2], inTile[p3]
 					p0, p1, p2, p3 = p0+tileSizeSquared, p1+tileSizeSquared, p2+tileSizeSquared, p3+tileSizeSquared
@@ -241,7 +242,7 @@ func (s *Server) lastTileEpoch(tileType uint8) (common.Epoch, error) {
 	iter := s.tiles.NewIterator(util.BytesPrefix(append([]byte(KeyTile), tileType, 0)), nil)
 	defer iter.Release()
 	if iter.Last() {
-		epoch := common.Epoch(binary.BigEndian.Uint32(iter.Key()[3+1+1 : 3+1+1+4]))
+		epoch := common.Epoch(binary.BigEndian.Uint32(iter.Key()[3+1+1:3+1+1+4])) * tileSize
 		return epoch, nil
 	} else {
 		return 0, iter.Error()
@@ -258,7 +259,8 @@ func (s *Server) updateTilesMaybe() error {
 		return fmt.Errorf("failed to retrieve last block slot during tile update: %v", err)
 	}
 	lastBlockEpoch := s.spec.SlotToEpoch(lastSlot)
-	if lastTileEpoch == lastBlockEpoch {
+	if lastTileEpoch/tileSize == lastBlockEpoch/tileSize {
+		// TODO: override if there are new blocks within the last tile
 		return io.EOF
 	}
 
@@ -295,8 +297,8 @@ func (s *Server) resetTilesTyped(tileType uint8, resetSlot common.Slot) error {
 
 	var batch leveldb.Batch
 	for z := uint8(0); z < maxZoom; z++ {
-		start := uint32(lastEpoch >> z)
-		end := uint32(resetEpoch >> z)
+		start := uint32(resetEpoch >> z)
+		end := uint32(lastEpoch >> z)
 		r := &util.Range{
 			Start: make([]byte, 3+1+1+4),
 			Limit: make([]byte, 3+1+1+4),
