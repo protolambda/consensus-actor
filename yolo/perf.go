@@ -173,7 +173,7 @@ func (s *Server) processPerf(currEp common.Epoch) error {
 	if err := s.perf.Put(outKey[:], out, nil); err != nil {
 		return fmt.Errorf("failed to store epoch performance")
 	}
-	if currEp%10 == 0 {
+	if currEp%100 == 0 {
 		s.log.Info("updated performance data", "epoch", currEp)
 	}
 	return nil

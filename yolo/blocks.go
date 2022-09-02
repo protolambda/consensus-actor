@@ -6,12 +6,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/protolambda/zrnt/eth2/beacon/bellatrix"
+	"github.com/protolambda/ztyp/tree"
 	"time"
 
 	"github.com/protolambda/eth2api"
 	"github.com/protolambda/eth2api/client/beaconapi"
 	"github.com/protolambda/zrnt/eth2/beacon/altair"
-	"github.com/protolambda/zrnt/eth2/beacon/bellatrix"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/beacon/phase0"
 	"github.com/protolambda/ztyp/codec"
@@ -65,7 +66,7 @@ func (s *Server) getBlock(slot common.Slot) (*BlockData, error) {
 	}
 
 	if uint64(s.spec.BELLATRIX_FORK_EPOCH)*uint64(s.spec.SLOTS_PER_EPOCH) <= uint64(slot) {
-		var dest bellatrix.SignedBeaconBlock
+		var dest SignedBeaconBlockLH
 		if err := dest.Deserialize(s.spec, codec.NewDecodingReader(bytes.NewReader(data), uint64(len(data)))); err != nil {
 			return nil, err
 		}
@@ -221,37 +222,75 @@ func (s *Server) updateBlocksMaybe() error {
 		return nil
 	}
 
-	// envelop it so it's nice to work with
-	forkDigest := s.forks.ForkDigest(s.spec.SlotToEpoch(nextSlot))
-	block := dest.Data.Envelope(s.spec, forkDigest)
+	var parentRoot common.Root
+	var blockRoot common.Root
+	var blockSlot common.Slot
+	switch sbl := dest.Data.(type) {
+	case *phase0.SignedBeaconBlock:
+		parentRoot = sbl.Message.ParentRoot
+		blockSlot = sbl.Message.Slot
+		blockRoot = sbl.Message.HashTreeRoot(s.spec, tree.GetHashFn())
+	case *altair.SignedBeaconBlock:
+		parentRoot = sbl.Message.ParentRoot
+		blockSlot = sbl.Message.Slot
+		blockRoot = sbl.Message.HashTreeRoot(s.spec, tree.GetHashFn())
+	case *bellatrix.SignedBeaconBlock:
+		parentRoot = sbl.Message.ParentRoot
+		blockSlot = sbl.Message.Slot
+		blockRoot = sbl.Message.HashTreeRoot(s.spec, tree.GetHashFn())
+		bod := &sbl.Message.Body
+		// API only serves full blocks, but we only want the blinded version, like lighthouse.
+		// Standard API should really get a block retrieval method with blinded block data
+		dest.Data = &SignedBeaconBlockLH{
+			Message: BeaconBlockLH{
+				Slot:          sbl.Message.Slot,
+				ProposerIndex: sbl.Message.ProposerIndex,
+				ParentRoot:    sbl.Message.ParentRoot,
+				StateRoot:     sbl.Message.StateRoot,
+				Body: BeaconBlockBodyLH{
+					RandaoReveal:      bod.RandaoReveal,
+					Eth1Data:          bod.Eth1Data,
+					Graffiti:          bod.Graffiti,
+					ProposerSlashings: bod.ProposerSlashings,
+					AttesterSlashings: bod.AttesterSlashings,
+					Attestations:      bod.Attestations,
+					Deposits:          bod.Deposits,
+					VoluntaryExits:    bod.VoluntaryExits,
+					SyncAggregate:     bod.SyncAggregate,
+					ExecutionPayload:  *bod.ExecutionPayload.Header(s.spec),
+				},
+			},
+			Signature: sbl.Signature,
+		}
+	}
 
 	// check if there was a reorg between the moment of finding a common chain, and retrieving the next block
-	if block.ParentRoot != commonBlockRoot {
+	if parentRoot != commonBlockRoot {
 		return fmt.Errorf("block import needs to start over, reorg detected after finding common block at slot %d with root %s, now expected parent root %s from next block: %s",
-			commonSlot, commonBlockRoot, block.ParentRoot, block.BlockRoot)
+			commonSlot, commonBlockRoot, parentRoot, blockRoot)
 	}
 
 	var batch leveldb.Batch
 	{
 		var key [3 + 8]byte
 		copy(key[:3], KeyBlock)
-		binary.BigEndian.PutUint64(key[3:], uint64(block.Slot))
+		binary.BigEndian.PutUint64(key[3:], uint64(blockSlot))
 		var buf bytes.Buffer
-		if err := block.Serialize(codec.NewEncodingWriter(&buf)); err != nil {
-			return fmt.Errorf("failed to encode new block %s at slot %d: %v", block.BlockRoot, block.Slot, err)
+		if err := dest.Data.Serialize(s.spec, codec.NewEncodingWriter(&buf)); err != nil {
+			return fmt.Errorf("failed to encode new block %s at slot %d: %v", blockRoot, blockSlot, err)
 		}
 		batch.Put(key[:], buf.Bytes())
 	}
 	{
 		var key [3 + 8]byte
 		copy(key[:3], KeyBlockRoot)
-		binary.BigEndian.PutUint64(key[3:], uint64(block.Slot))
-		batch.Put(key[:], block.BlockRoot[:])
+		binary.BigEndian.PutUint64(key[3:], uint64(blockSlot))
+		batch.Put(key[:], blockRoot[:])
 	}
 	if err := s.blocks.Write(&batch, nil); err != nil {
-		return fmt.Errorf("failed to import new block %s at slot %d: %v", block.BlockRoot, block.Slot, err)
+		return fmt.Errorf("failed to import new block %s at slot %d: %v", blockRoot, blockSlot, err)
 	}
-	s.log.Info("imported block", "slot", block.Slot)
+	s.log.Info("imported block", "slot", blockSlot)
 	return nil
 }
 
