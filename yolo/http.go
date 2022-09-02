@@ -19,7 +19,7 @@ type IndexData struct {
 
 func (s *Server) startHttpServer() {
 	var mux http.ServeMux
-	mux.Handle("/validator-order", http.StripPrefix("/tile", s.handleImgRequest(0)))
+	mux.Handle("/validator-order", http.StripPrefix("/validator-order", s.handleImgRequest(0)))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := s.indexTempl.Execute(w, &IndexData{Title: s.title, API: s.publicEndpoint})
 		if err != nil {

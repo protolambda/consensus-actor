@@ -23,8 +23,8 @@ const (
 	//
 	// Values under this key are snappy block-compressed.
 	//
-	// The uncompressed value is a square of tileSize x tileSize, with 4 bytes per pixel.
-	// Tiles are encoded as RGBA bitmap: 4 byte pixel values, one row at a time, from image top to bottom.
+	// The uncompressed value is 4 squares of tileSize x tileSize, one for R, one for G, B, and A
+	// The squares encode column by column.
 	//
 	// TODO: we can encode tiles in with R, G, B grouped together separately. Omit A.
 	// And implement the image.Image interface to map back to an image.
@@ -68,42 +68,47 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 		for vi, vPerf := range perf {
 			tY := uint64(vi) / tileSize
 			tile := tiles[tY]
+			tileR := tile[:tileSize]
+			tileG := tile[tileSize : tileSize*2]
+			tileB := tile[tileSize*2 : tileSize*3]
+			tileA := tile[tileSize*3:]
+
 			y := uint64(vi) % tileSize
-			pos := 4 * (y*tileSize + x)
+			pos := x*tileSize + y
 			// max alpha
-			tile[pos+3] = 0xff
+			tileA[pos] = 0xff
 
 			if vPerf&ValidatorExists == 0 {
 				// if not existing, then black pixel
-				tile[pos] = 0
-				tile[pos+1] = 0
-				tile[pos+2] = 0
+				tileR[pos] = 0
+				tileG[pos] = 0
+				tileB[pos] = 0
 			} else {
 				// if existent, but not participating, then color it a special gray
 				if vPerf == ValidatorExists {
-					tile[pos] = 0x20
-					tile[pos+1] = 0x20
-					tile[pos+2] = 0x20
+					tileR[pos] = 0x20
+					tileG[pos] = 0x20
+					tileB[pos] = 0x20
 				} else {
 					// higher head distance becomes darker (unknown is 0xff)
 					headDist := uint32((vPerf >> 24) & 0xff)
 					if headDist == 0xff {
-						tile[pos] = 0x30
+						tileR[pos] = 0x30
 					} else {
 						q := 64 - headDist
 						q = (q * q * q * q * q) >> 22
-						tile[pos] = uint8(q)
+						tileR[pos] = uint8(q)
 					}
 					// correct target is 0xff, incorrect is 0
-					tile[pos+1] = byte(vPerf >> 16)
+					tileG[pos] = byte(vPerf >> 16)
 					// higher inclusion distance becomes darker
 					inclDist := uint32((vPerf >> 8) & 0xff)
 					if inclDist == 0xff {
-						tile[pos+2] = 0x30
+						tileB[pos] = 0x30
 					} else {
 						q := 64 - inclDist
 						q = (q * q * q * q * q) >> 22
-						tile[pos+2] = uint8(q)
+						tileB[pos] = uint8(q)
 					}
 				}
 			}
@@ -111,13 +116,18 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 		for vi := uint64(len(perf)); vi < maxValidators; vi++ {
 			tY := vi / tileSize
 			tile := tiles[tY]
+			tileR := tile[:tileSize]
+			tileG := tile[tileSize : tileSize*2]
+			tileB := tile[tileSize*2 : tileSize*3]
+			tileA := tile[tileSize*3:]
+
 			y := vi % tileSize
-			pos := 4 * (y*tileSize + x)
+			pos := x*tileSize + y
 			// transparent pixel
-			tile[pos] = 0
-			tile[pos+1] = 0
-			tile[pos+2] = 0
-			tile[pos+3] = 0
+			tileR[pos] = 0
+			tileG[pos] = 0
+			tileB[pos] = 0
+			tileA[pos] = 0
 		}
 	}
 	for tY, tile := range tiles {
@@ -184,21 +194,31 @@ func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 			for x := uint64(0); x < tileSize/2; x++ {
 				for y := uint64(0); y < tileSize/2; y++ {
 					// top left, top right, bottom left, bottom right
-					p0, p1, p2, p3 := (y*2*tileSize+x*2)*4, (y*2*tileSize+x*2+1)*4,
-						((y*2+1)*tileSize+x*2)*4, ((y*2+1)*tileSize+x*2+1)*4
-					r0, g0, b0, a0 := inTile[p0], inTile[p0+1], inTile[p0+2], inTile[p0+3]
-					r1, g1, b1, a1 := inTile[p1], inTile[p1+1], inTile[p1+2], inTile[p1+3]
-					r2, g2, b2, a2 := inTile[p2], inTile[p2+1], inTile[p2+2], inTile[p2+3]
-					r3, g3, b3, a3 := inTile[p3], inTile[p3+1], inTile[p3+2], inTile[p3+3]
+					p0 := y*2*tileSize + x*2
+					p1 := p0 + 1
+					p2 := p0 + tileSize
+					p3 := p2 + 1
+
+					r0, r1, r2, r3 := inTile[p0], inTile[p1], inTile[p2], inTile[p3]
+					p0, p1, p2, p3 = p0+tileSizeSquared, p1+tileSizeSquared, p2+tileSizeSquared, p3+tileSizeSquared
+					g0, g1, g2, g3 := inTile[p0], inTile[p1], inTile[p2], inTile[p3]
+					p0, p1, p2, p3 = p0+tileSizeSquared, p1+tileSizeSquared, p2+tileSizeSquared, p3+tileSizeSquared
+					b0, b1, b2, b3 := inTile[p0], inTile[p1], inTile[p2], inTile[p3]
+					p0, p1, p2, p3 = p0+tileSizeSquared, p1+tileSizeSquared, p2+tileSizeSquared, p3+tileSizeSquared
+					a0, a1, a2, a3 := inTile[p0], inTile[p1], inTile[p2], inTile[p3]
 
 					r := mix(r0, r1, r2, r3)
 					g := mix(g0, g1, g2, g3)
 					b := mix(b0, b1, b2, b3)
 					a := mix(a0, a1, a2, a3)
-					outTile[((offY+y)*tileSize+offX+x)*4] = r
-					outTile[((offY+y)*tileSize+offX+x)*4+1] = g
-					outTile[((offY+y)*tileSize+offX+x)*4+2] = b
-					outTile[((offY+y)*tileSize+offX+x)*4+3] = a
+					pos := (offX+x)*tileSize + (offY + y)
+					outTile[pos] = r
+					pos += tileSizeSquared
+					outTile[pos] = g
+					pos += tileSizeSquared
+					outTile[pos] = b
+					pos += tileSizeSquared
+					outTile[pos] = a
 				}
 			}
 		}

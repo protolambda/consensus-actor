@@ -57,7 +57,7 @@
 <div id="validator-info"></div>
 <script>
 
-    var maxZoom = 10;
+    var maxZoom = 13;
     var mymap = L.map('mapid', {
         crs: L.CRS.Simple,
         minZoom: 1,
@@ -72,7 +72,7 @@
         maxZoom: maxZoom,
         attribution: 'data by @protolambda',
         id: 'beacon',
-        tileSize: 256,
+        tileSize: 128,
         // added to the actual zoom level on request
         zoomOffset: 0,
     })
