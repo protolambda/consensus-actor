@@ -3,6 +3,7 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/util/hashing"
@@ -15,6 +16,10 @@ const (
 	// 3 byte prefix for keying randao mixes, followed by:
 	// 8 byte big-endian epoch number
 	//
+	// The epoch number represents the epoch that the mix was completed at.
+	// I.e. block 1,2,3...31 randao reveals are mixed into the mix at epoch 1.
+	// The mix at epoch 0 is not stored, but instead loaded as special genesis mix value.
+	//
 	// The value is a 32 byte mix, XOR'ing all past randao inputs together, as defined in the consensus spec.
 	KeyRandaoMix string = "rnd"
 )
@@ -25,40 +30,42 @@ func (s *Server) updateRandaoMaybe() error {
 		return fmt.Errorf("failed to get block progress for randao update check: %v", err)
 	}
 
-	epoch, err := s.lastRandaoEpoch()
+	prevEpoch, err := s.lastRandaoEpoch()
 	if err != nil {
 		return fmt.Errorf("failed to get randao progress: %v", err)
 	}
-	// go to next epoch
-	epoch += 1
 
 	blocksEpoch := s.spec.SlotToEpoch(lastSlot)
 
 	// check if there are enough new blocks to update an epoch
-	if epoch < blocksEpoch {
-		return nil
+	if prevEpoch >= blocksEpoch {
+		return io.EOF
 	}
 
-	prevEpoch := epoch - 1
+	// with look-ahead
 	prevMix, err := s.getRandao(prevEpoch)
 	if err != nil {
 		return fmt.Errorf("failed to get previous randao mix: %v", err)
 	}
 	mix := prevMix
 
-	startSlot, err := s.spec.EpochStartSlot(epoch)
+	startSlot, err := s.spec.EpochStartSlot(prevEpoch)
 	if err != nil {
 		return fmt.Errorf("no start slot: %v", err)
 	}
 	endSlot := startSlot + s.spec.SLOTS_PER_EPOCH - 1
 
 	for slot := startSlot; slot <= endSlot; slot++ {
+		if slot == 0 {
+			continue
+		}
 		dat, err := s.getBlock(slot)
 		if err == ErrBlockNotFound {
 			continue
 		}
 		mix = hashing.XorBytes32(mix, hashing.Hash(dat.RandaoReveal[:]))
 	}
+	epoch := prevEpoch + 1
 	var batch leveldb.Batch
 	{
 		// store the mix
@@ -70,7 +77,10 @@ func (s *Server) updateRandaoMaybe() error {
 	if err := s.blocks.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to write randao mix of epoch %d to db: %v", epoch, err)
 	}
-	s.log.Info("updated randao mixes", "epoch", epoch)
+	s.log.Trace("updated randao mixes", "epoch", epoch)
+	if epoch%1000 == 0 {
+		s.log.Info("updated randao mixes", "epoch", epoch)
+	}
 	return nil
 }
 
@@ -80,10 +90,6 @@ func (s *Server) getRandao(epoch common.Epoch) ([32]byte, error) {
 	}
 	var key [3 + 8]byte
 	copy(key[:3], KeyRandaoMix)
-	// lookahead applies
-	if epoch > 0 {
-		epoch -= 1
-	}
 	binary.BigEndian.PutUint64(key[3:], uint64(epoch))
 	var out [32]byte
 	v, err := s.blocks.Get(key[:], nil)
@@ -99,6 +105,12 @@ func (s *Server) shufflingSeed(epoch common.Epoch) ([32]byte, error) {
 
 	// epoch
 	binary.LittleEndian.PutUint64(buf[4:4+8], uint64(epoch))
+	// apply lookahead to rando lookup
+	if epoch >= s.spec.MIN_SEED_LOOKAHEAD {
+		epoch -= s.spec.MIN_SEED_LOOKAHEAD
+	}
+	// And no need for the -1 like the spec,
+	// we store the randao mix not at the epoch of the blocks it was created with, but the epoch after.
 	mix, err := s.getRandao(epoch)
 	if err != nil {
 		return [32]byte{}, err
@@ -123,7 +135,11 @@ func (s *Server) lastRandaoEpoch() (common.Epoch, error) {
 		epoch := common.Epoch(binary.BigEndian.Uint64(iter.Key()[3:]))
 		return epoch, nil
 	} else {
-		return 0, iter.Error()
+		err := iter.Error()
+		if err != nil {
+			return 0, err
+		}
+		return 0, nil
 	}
 }
 

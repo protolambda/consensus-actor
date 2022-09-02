@@ -20,8 +20,10 @@ func (s *Server) syncStep() error {
 	// repeat: try update stage, unless we're done with updating that stage already,
 	// then continue with next stage
 
-	if err := s.updateBlocksMaybe(); err != io.EOF {
-		return err
+	if !s.syncDisableBlocks {
+		if err := s.updateBlocksMaybe(); err != io.EOF {
+			return err
+		}
 	}
 
 	if err := s.updateRandaoMaybe(); err != io.EOF {

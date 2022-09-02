@@ -36,6 +36,8 @@ type Server struct {
 	publicEndpoint string
 	indexTempl     *template.Template
 
+	syncDisableBlocks bool
+
 	// beacon spec
 	spec  *common.Spec
 	forks *beacon.ForkDecoder
@@ -117,7 +119,7 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 	{
 		// unfortunately the standard API does not have a method of fetching
 		// the genesis eth1 block hash or randaovalue, so we just get the full genesis state.
-		log.Info("Loading beacon state from beacon api endpoint...")
+		log.Info("Loading genesis beacon state from beacon api endpoint...")
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 		defer cancel()
 		var genesisState phase0.BeaconState
@@ -156,6 +158,8 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 		title:          ctx.String(flags.SiteTitleFlag.Name),
 		publicEndpoint: ctx.String(flags.PublicAPIFlag.Name),
 		indexTempl:     indexTempl,
+
+		syncDisableBlocks: ctx.Bool(flags.SyncDisableBlocks.Name),
 
 		spec:             &spec,
 		forks:            forks,

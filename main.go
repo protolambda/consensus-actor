@@ -67,7 +67,7 @@ func SetupLogger(ctx *cli.Context) (log.Logger, error) {
 	}
 	handler := log.StreamHandler(os.Stdout, logFmt)
 	handler = log.SyncHandler(handler)
-	log.LvlFilterHandler(lvl, handler)
+	handler = log.LvlFilterHandler(lvl, handler)
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger, nil

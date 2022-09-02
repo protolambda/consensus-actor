@@ -2,6 +2,7 @@ package yolo
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
@@ -15,6 +16,9 @@ const (
 	// KeyPerf is a:
 	// 3 byte prefix for per-epoch performance keying, followed by:
 	// 8 byte big-endian epoch value. (big endian to make db byte-prefix iteration and range-slices follow epoch order)
+	//
+	// The epoch key represents the boundary when the data became available.
+	// I.e. epoch == 2 means that 0 == prev and 1 == current were processed.
 	//
 	// Values under this key are snappy block-compressed.
 	//
@@ -40,7 +44,15 @@ const (
 )
 
 // with 1 epoch delay (inclusion can be delayed), check validator performance
-func (s *Server) processPrevEpoch(currEp common.Epoch) error {
+// if currEp == 0, then process nothing
+// if currEp == 1, then process 0 and 1, filtered for target == 0
+// if currEp == 2, then process 1 and 2, filtered for target == 1
+// etc.
+func (s *Server) processPerf(currEp common.Epoch) error {
+	if currEp == 0 {
+		return errors.New("epoch 0 should never be processed, performance data is only available with epoch 1 completed")
+	}
+
 	// don't have to re-hash the block if we just load the hashes
 
 	// get all block roots in previous and current epoch (or just current if genesis)
@@ -53,10 +65,7 @@ func (s *Server) processPrevEpoch(currEp common.Epoch) error {
 		return fmt.Errorf("bad epoch start slot of prev epoch: %w", err)
 	}
 
-	count := s.spec.SLOTS_PER_EPOCH
-	if currEp != 0 {
-		count += s.spec.SLOTS_PER_EPOCH
-	}
+	count := s.spec.SLOTS_PER_EPOCH * 2
 
 	for i := common.Slot(0); i < count; i++ {
 		slot := prevStart + i
@@ -164,6 +173,9 @@ func (s *Server) processPrevEpoch(currEp common.Epoch) error {
 	if err := s.perf.Put(outKey[:], out, nil); err != nil {
 		return fmt.Errorf("failed to store epoch performance")
 	}
+	if currEp%10 == 0 {
+		s.log.Info("updated performance data", "epoch", currEp)
+	}
 	return nil
 }
 
@@ -187,7 +199,7 @@ func (s *Server) getPerf(currEp common.Epoch) ([]ValidatorPerformance, error) {
 }
 
 func (s *Server) lastPerfEpoch() (common.Epoch, error) {
-	iter := s.blocks.NewIterator(util.BytesPrefix([]byte(KeyPerf)), nil)
+	iter := s.perf.NewIterator(util.BytesPrefix([]byte(KeyPerf)), nil)
 	defer iter.Release()
 	if iter.Last() {
 		epoch := common.Epoch(binary.BigEndian.Uint64(iter.Key()[3:]))
@@ -207,24 +219,24 @@ func (s *Server) updatePerfMaybe() error {
 		return err
 	}
 	lastEpoch := s.spec.SlotToEpoch(lastSlot)
-	if lastEpoch > perfEpoch+1 {
-		return s.processPrevEpoch(perfEpoch + 1)
+	if lastEpoch > perfEpoch {
+		return s.processPerf(perfEpoch + 1)
 	}
 	return io.EOF
 }
 
 func (s *Server) resetPerf(resetSlot common.Slot) error {
-	prevEpoch, err := s.lastPerfEpoch()
+	ep, err := s.lastPerfEpoch()
 	if err != nil {
 		return err
 	}
-	if prevEpoch < s.spec.SlotToEpoch(resetSlot) {
+	if ep < s.spec.SlotToEpoch(resetSlot) {
 		return nil
 	}
 
 	prefix := []byte(KeyPerf)
-	start := uint64(s.spec.SlotToEpoch(resetSlot)) + 1
-	end := uint64(prevEpoch) + 1
+	start := uint64(s.spec.SlotToEpoch(resetSlot))
+	end := uint64(ep) + 1
 
 	keyRange := &util.Range{
 		Start: make([]byte, 3+8),
@@ -235,7 +247,7 @@ func (s *Server) resetPerf(resetSlot common.Slot) error {
 	copy(keyRange.Limit[:3], prefix)
 	binary.BigEndian.PutUint64(keyRange.Limit[3:], end)
 
-	iter := s.blocks.NewIterator(keyRange, nil)
+	iter := s.perf.NewIterator(keyRange, nil)
 	defer iter.Release()
 
 	var batch leveldb.Batch
@@ -243,7 +255,7 @@ func (s *Server) resetPerf(resetSlot common.Slot) error {
 		batch.Delete(iter.Key())
 	}
 
-	if err := s.blocks.Write(&batch, nil); err != nil {
+	if err := s.perf.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to cleanup conflicting perf mix data with key %v", err)
 	}
 

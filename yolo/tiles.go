@@ -133,6 +133,8 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 }
 
 func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
+	s.log.Info("updating tile column", "type", tileType, "tX", tX, "zoom", zoom)
+
 	maxValidators := uint64(len(s.indicesBounded))
 
 	tileSizeAbs := uint64(tileSize) << zoom
@@ -216,7 +218,7 @@ func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 }
 
 func (s *Server) lastTileEpoch(tileType uint8) (common.Epoch, error) {
-	iter := s.blocks.NewIterator(util.BytesPrefix(append([]byte(KeyPerf), tileType, 0)), nil)
+	iter := s.tiles.NewIterator(util.BytesPrefix(append([]byte(KeyTile), tileType, 0)), nil)
 	defer iter.Release()
 	if iter.Last() {
 		epoch := common.Epoch(binary.BigEndian.Uint32(iter.Key()[3+1+1 : 3+1+1+4]))
@@ -289,7 +291,7 @@ func (s *Server) resetTilesTyped(tileType uint8, resetSlot common.Slot) error {
 		r.Limit[3+1] = z
 		binary.BigEndian.PutUint32(r.Limit[3+1+1:], end+1)
 
-		iter := s.blocks.NewIterator(r, nil)
+		iter := s.tiles.NewIterator(r, nil)
 		for iter.Next() {
 			batch.Delete(iter.Key())
 		}

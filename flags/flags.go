@@ -55,6 +55,9 @@ var (
 
 var GlobalFlags = []cli.Flag{
 	DataDirFlag,
+	DataBlocksDBFlag,
+	DataPerfDBFlag,
+	DataTilesDBFlag,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
@@ -92,18 +95,20 @@ var (
 		EnvVar: prefixEnvVar("BEACON_API"),
 		Value:  "http://localhost:5052",
 	}
+	SyncDisableBlocks = cli.BoolFlag{
+		Name:   "sync.disable.blocks",
+		Usage:  "Disables syncing of new blocks, to keep server content the same",
+		EnvVar: prefixEnvVar("SYNC_DISABLE_BLOCKS"),
+	}
 )
 
 var ServerFlags = []cli.Flag{
-	DataDirFlag,
-	DataBlocksDBFlag,
-	DataPerfDBFlag,
-	DataTilesDBFlag,
 	HttpAddrFlag,
 	HttpPortFlag,
 	SiteTitleFlag,
 	PublicAPIFlag,
 	BeaconAPIAddrFlag,
+	SyncDisableBlocks,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
@@ -138,7 +143,6 @@ var (
 )
 
 var ImportFlags = []cli.Flag{
-	DataBlocksDBFlag,
 	ImportLighthouseChainFlag,
 	ImportLighthouseFreezerFlag,
 	ImportStartSlotFlag,
