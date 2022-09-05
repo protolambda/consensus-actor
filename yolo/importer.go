@@ -68,7 +68,7 @@ func (s *Importer) loadBlocksDB(baseDir string, ctx *cli.Context) error {
 	if blocksPath == "" {
 		return fmt.Errorf("need blocks db path")
 	}
-	blocks, err := openDB(blocksPath, false, 20)
+	blocks, err := openDB(blocksPath, false, 2000)
 	if err != nil {
 		return fmt.Errorf("failed to open blocks db %q: %w", blocksPath, err)
 	}
@@ -82,7 +82,7 @@ func (s *Importer) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
 		s.log.Info("No lighthouse chain db specified for import")
 		return nil
 	}
-	db, err := openDB(chPath, true, 20)
+	db, err := openDB(chPath, true, 2000)
 	if err != nil {
 		return fmt.Errorf("failed to open lighthouse chain db: %w", err)
 	}
@@ -96,7 +96,7 @@ func (s *Importer) loadLighthouseFreezerDBMaybe(ctx *cli.Context) error {
 		s.log.Info("No lighthouse freezer db specified for import")
 		return nil
 	}
-	db, err := openDB(frPath, true, 20)
+	db, err := openDB(frPath, true, 2000)
 	if err != nil {
 		return fmt.Errorf("failed to open lighthouse freezer db: %w", err)
 	}
