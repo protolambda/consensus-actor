@@ -22,6 +22,12 @@ var (
 		EnvVar: prefixEnvVar("DATA_BLOCKS"),
 		Value:  "blocks",
 	}
+	DataBlocksCacheSizeFlag = cli.IntFlag{
+		Name:   "data.blocks.cachesize",
+		Usage:  "Leveldb memory cache size in megabytes for data blocks cache",
+		EnvVar: prefixEnvVar("DATA_BLOCKS_CACHE_SIZE"),
+		Value:  4000,
+	}
 	DataPerfDBFlag = cli.StringFlag{
 		Name:   "data.perf",
 		Usage:  "Performance level db path, relative to data.dir",
@@ -58,6 +64,7 @@ var GlobalFlags = []cli.Flag{
 	DataBlocksDBFlag,
 	DataPerfDBFlag,
 	DataTilesDBFlag,
+	DataBlocksCacheSizeFlag,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
@@ -128,14 +135,26 @@ var (
 		EnvVar:   prefixEnvVar("IMPORT_LIGHTHOUSE_FREEZER"),
 		Required: true,
 	}
+	ImportLighthouseChainCacheSizeFlag = cli.IntFlag{
+		Name:   "lighthouse.chain.cachesize",
+		Usage:  "Leveldb memory cache size in megabytes for chain db cache",
+		EnvVar: prefixEnvVar("IMPORT_LIGHTHOUSE_CHAIN_CACHE_SIZE"),
+		Value:  2000,
+	}
+	ImportLighthouseFreezerCacheSizeFlag = cli.IntFlag{
+		Name:   "lighthouse.freezer.cachesize",
+		Usage:  "Leveldb memory cache size in megabytes for freezer db cache",
+		EnvVar: prefixEnvVar("IMPORT_LIGHTHOUSE_FREEZER_CACHE_SIZE"),
+		Value:  2000,
+	}
 	ImportStartSlotFlag = cli.Uint64Flag{
-		Name:   "startslot",
+		Name:   "import.startslot",
 		Usage:  "Start slot (inclusive) of block import",
 		EnvVar: prefixEnvVar("IMPORT_START_SLOT"),
 		Value:  uint64(0),
 	}
 	ImportEndSlotFlag = cli.Uint64Flag{
-		Name:   "endslot",
+		Name:   "import.endslot",
 		Usage:  "End slot (exclusive) of block import",
 		EnvVar: prefixEnvVar("IMPORT_END_SLOT"),
 		Value:  ^uint64(0),
@@ -145,6 +164,8 @@ var (
 var ImportFlags = []cli.Flag{
 	ImportLighthouseChainFlag,
 	ImportLighthouseFreezerFlag,
+	ImportLighthouseChainCacheSizeFlag,
+	ImportLighthouseFreezerCacheSizeFlag,
 	ImportStartSlotFlag,
 	ImportEndSlotFlag,
 }

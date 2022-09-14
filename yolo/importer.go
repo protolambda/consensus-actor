@@ -64,11 +64,12 @@ func NewImporter(ctx *cli.Context, log log.Logger) (*Importer, error) {
 }
 
 func (s *Importer) loadBlocksDB(baseDir string, ctx *cli.Context) error {
+	cacheSize := ctx.Int(flags.DataBlocksCacheSizeFlag.Name)
 	blocksPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataBlocksDBFlag.Name))
 	if blocksPath == "" {
 		return fmt.Errorf("need blocks db path")
 	}
-	blocks, err := openDB(blocksPath, false, 2000)
+	blocks, err := openDB(blocksPath, false, cacheSize)
 	if err != nil {
 		return fmt.Errorf("failed to open blocks db %q: %w", blocksPath, err)
 	}
@@ -77,12 +78,13 @@ func (s *Importer) loadBlocksDB(baseDir string, ctx *cli.Context) error {
 }
 
 func (s *Importer) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
+	cacheSize := ctx.Int(flags.ImportLighthouseChainCacheSizeFlag.Name)
 	chPath := ctx.String(flags.ImportLighthouseChainFlag.Name)
 	if chPath == "" {
 		s.log.Info("No lighthouse chain db specified for import")
 		return nil
 	}
-	db, err := openDB(chPath, true, 2000)
+	db, err := openDB(chPath, true, cacheSize)
 	if err != nil {
 		return fmt.Errorf("failed to open lighthouse chain db: %w", err)
 	}
@@ -91,12 +93,13 @@ func (s *Importer) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
 }
 
 func (s *Importer) loadLighthouseFreezerDBMaybe(ctx *cli.Context) error {
+	cacheSize := ctx.Int(flags.ImportLighthouseFreezerCacheSizeFlag.Name)
 	frPath := ctx.String(flags.ImportLighthouseFreezerFlag.Name)
 	if frPath == "" {
 		s.log.Info("No lighthouse freezer db specified for import")
 		return nil
 	}
-	db, err := openDB(frPath, true, 2000)
+	db, err := openDB(frPath, true, cacheSize)
 	if err != nil {
 		return fmt.Errorf("failed to open lighthouse freezer db: %w", err)
 	}
