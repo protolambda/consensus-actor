@@ -67,6 +67,7 @@ func (s *TileProcessor) Run(ctx context.Context) error {
 	}
 
 	for tX := uint64(s.startEpoch) / tileSize; tX <= uint64(s.endEpoch)/tileSize; tX++ {
+		log.Info("creating base tiles", "tX", tX, "zoom", 0)
 		if err := performanceToTiles(s.perf, s.tiles, 0, tX); err != nil {
 			return fmt.Errorf("failed to update zoom 0 tiles at tX %d: %v", tX, err)
 		}
@@ -77,6 +78,7 @@ func (s *TileProcessor) Run(ctx context.Context) error {
 		tilesXStart := uint64(s.startEpoch) / tileSizeAbs
 		tilesXEnd := (uint64(s.endEpoch) + tileSizeAbs - 1) / tileSizeAbs
 		for i := tilesXStart; i < tilesXEnd; i++ {
+			log.Info("computing conv tiles", "tX", i, "zoom", z)
 			if err := convTiles(s.tiles, 0, i, z); err != nil {
 				return fmt.Errorf("failed tile convolution layer at zoom %d tX %d: %v", z, i, err)
 			}

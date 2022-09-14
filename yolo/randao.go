@@ -3,7 +3,6 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/util/hashing"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -23,7 +22,7 @@ const (
 	KeyRandaoMix string = "rnd"
 )
 
-func updateRandao(log log.Logger, spec *common.Spec, randaoDB *leveldb.DB, blocks *leveldb.DB, prevEpoch common.Epoch) error {
+func updateRandao(spec *common.Spec, randaoDB *leveldb.DB, blocks *leveldb.DB, prevEpoch common.Epoch) error {
 	// with look-ahead
 	prevMix, err := getRandao(randaoDB, prevEpoch)
 	if err != nil {
@@ -58,9 +57,6 @@ func updateRandao(log log.Logger, spec *common.Spec, randaoDB *leveldb.DB, block
 	}
 	if err := blocks.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to write randao mix of epoch %d to db: %v", epoch, err)
-	}
-	if epoch%100 == 0 {
-		log.Info("updated randao mixes", "epoch", epoch)
 	}
 	return nil
 }

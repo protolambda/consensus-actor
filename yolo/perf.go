@@ -2,7 +2,6 @@ package yolo
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
@@ -42,16 +41,11 @@ const (
 )
 
 // with 1 epoch delay (inclusion can be delayed), check validator performance
-// if currEp == 0, then process nothing
+// if currEp == 0, then process only 0, filtered for target == 0
 // if currEp == 1, then process 0 and 1, filtered for target == 0
 // if currEp == 2, then process 1 and 2, filtered for target == 1
 // etc.
 func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, randaoDB *leveldb.DB, indicesBounded []common.BoundedIndex, currEp common.Epoch) error {
-	// TODO handle 0 case
-	if currEp == 0 {
-		return errors.New("epoch 0 should never be processed, performance data is only available with epoch 1 completed")
-	}
-
 	// don't have to re-hash the block if we just load the hashes
 
 	// get all block roots in previous and current epoch (or just current if genesis)
@@ -65,6 +59,9 @@ func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, ra
 	}
 
 	count := spec.SLOTS_PER_EPOCH * 2
+	if prevEp == currEp {
+		count = spec.SLOTS_PER_EPOCH
+	}
 
 	for i := common.Slot(0); i < count; i++ {
 		slot := prevStart + i
@@ -75,9 +72,9 @@ func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, ra
 		roots = append(roots, blockRoot)
 	}
 
-	// get all blocks in previous epoch
-	blocks := make([]*BlockData, 0, spec.SLOTS_PER_EPOCH)
-	for i := common.Slot(0); i < spec.SLOTS_PER_EPOCH; i++ {
+	// get all blocks in previous and/or current epoch
+	blocks := make([]*BlockData, 0, count)
+	for i := common.Slot(0); i < count; i++ {
 		if b, err := getBlock(blocksDB, spec, prevStart+i); err == ErrBlockNotFound {
 			continue
 		} else if err != nil {
@@ -87,6 +84,7 @@ func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, ra
 		}
 	}
 
+	// TODO is this correct in genesis case?
 	prevShuf, err := shuffling(spec, randaoDB, indicesBounded, prevEp)
 	if err != nil {
 		return fmt.Errorf("failed to get shuffling for epoch %d: %v", prevEp, err)

@@ -88,7 +88,7 @@ func (s *RandaoComputer) Run(ctx context.Context) error {
 		if i%100 == 0 {
 			s.log.Info("updating randao data", "prev_epoch", i)
 		}
-		if err := updateRandao(s.log, s.spec, s.randao, s.blocks, s.startEpoch); err != nil {
+		if err := updateRandao(s.spec, s.randao, s.blocks, s.startEpoch); err != nil {
 			return fmt.Errorf("failed to update randao at prev epoch %d: %w", i, err)
 		}
 	}
