@@ -22,11 +22,11 @@ var (
 		EnvVar: prefixEnvVar("DATA_BLOCKS"),
 		Value:  "blocks",
 	}
-	DataBlocksCacheSizeFlag = cli.IntFlag{
-		Name:   "data.blocks.cachesize",
-		Usage:  "Leveldb memory cache size in megabytes for data blocks cache",
-		EnvVar: prefixEnvVar("DATA_BLOCKS_CACHE_SIZE"),
-		Value:  4000,
+	DataRandaoDBFlag = cli.StringFlag{
+		Name:   "data.randao",
+		Usage:  "Randao level db path, relative to data.dir",
+		EnvVar: prefixEnvVar("DATA_RANDAO"),
+		Value:  "randao",
 	}
 	DataPerfDBFlag = cli.StringFlag{
 		Name:   "data.perf",
@@ -39,6 +39,30 @@ var (
 		Usage:  "Tiles level db path, relative to data.dir",
 		EnvVar: prefixEnvVar("DATA_TILES"),
 		Value:  "tiles",
+	}
+	DataBlocksCacheSizeFlag = cli.IntFlag{
+		Name:   "data.blocks.cachesize",
+		Usage:  "Leveldb memory cache size in megabytes for data blocks cache",
+		EnvVar: prefixEnvVar("DATA_BLOCKS_CACHE_SIZE"),
+		Value:  4000,
+	}
+	DataRandaoCacheSizeFlag = cli.IntFlag{
+		Name:   "data.randao.cachesize",
+		Usage:  "Leveldb memory cache size in megabytes for data randao cache",
+		EnvVar: prefixEnvVar("DATA_RANDAO_CACHE_SIZE"),
+		Value:  500,
+	}
+	DataPerfCacheSizeFlag = cli.IntFlag{
+		Name:   "data.perf.cachesize",
+		Usage:  "Leveldb memory cache size in megabytes for perf cache",
+		EnvVar: prefixEnvVar("DATA_PERF_CACHE_SIZE"),
+		Value:  4000,
+	}
+	DataTilesCacheSizeFlag = cli.IntFlag{
+		Name:   "data.tiles.cachesize",
+		Usage:  "Leveldb memory cache size in megabytes for tiles cache",
+		EnvVar: prefixEnvVar("DATA_TILES_CACHE_SIZE"),
+		Value:  4000,
 	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
@@ -62,9 +86,13 @@ var (
 var GlobalFlags = []cli.Flag{
 	DataDirFlag,
 	DataBlocksDBFlag,
+	DataRandaoDBFlag,
 	DataPerfDBFlag,
 	DataTilesDBFlag,
 	DataBlocksCacheSizeFlag,
+	DataRandaoCacheSizeFlag,
+	DataPerfCacheSizeFlag,
+	DataTilesCacheSizeFlag,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,

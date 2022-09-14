@@ -1,16 +1,10 @@
 package yolo
 
 import (
-	"fmt"
-	"path/filepath"
-
-	"github.com/hashicorp/go-multierror"
-	"github.com/protolambda/consensus-actor/flags"
 	"github.com/syndtr/goleveldb/leveldb"
 	lvlerrs "github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
 	"github.com/syndtr/goleveldb/leveldb/opt"
-	"github.com/urfave/cli"
 )
 
 // opens a level DB.
@@ -37,71 +31,4 @@ func openDB(file string, readonly bool, cache int) (*leveldb.DB, error) {
 		return nil, err
 	}
 	return db, nil
-}
-
-func (s *Server) loadBlocksDB(baseDir string, ctx *cli.Context) error {
-	blocksPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataBlocksDBFlag.Name))
-	if blocksPath == "" {
-		return fmt.Errorf("need blocks db path")
-	}
-	blocks, err := openDB(blocksPath, false, 20)
-	if err != nil {
-		return fmt.Errorf("failed to open blocks db %q: %w", blocksPath, err)
-	}
-	s.blocks = blocks
-	return nil
-}
-
-func (s *Server) loadPerfDB(baseDir string, ctx *cli.Context) error {
-	perfPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataPerfDBFlag.Name))
-	if perfPath == "" {
-		return fmt.Errorf("need perf db path")
-	}
-	perf, err := openDB(perfPath, false, 20)
-	if err != nil {
-		return fmt.Errorf("failed to open perf db %q: %w", perfPath, err)
-	}
-	s.perf = perf
-	return nil
-}
-
-func (s *Server) loadTilesDB(baseDir string, ctx *cli.Context) error {
-	tilesPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataTilesDBFlag.Name))
-	if tilesPath == "" {
-		return fmt.Errorf("need tiles db path")
-	}
-	tiles, err := openDB(tilesPath, false, 20)
-	if err != nil {
-		return fmt.Errorf("failed to open tiles db %q: %w", tilesPath, err)
-	}
-	s.tiles = tiles
-	return nil
-}
-
-func (s *Server) closeDBs() error {
-	s.blocksLock.Lock()
-	s.perfLock.Lock()
-	s.tilesLock.Lock()
-
-	defer s.blocksLock.Unlock()
-	defer s.perfLock.Unlock()
-	defer s.tilesLock.Unlock()
-
-	var result error
-	if s.blocks != nil {
-		if err := s.blocks.Close(); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-	if s.perf != nil {
-		if err := s.perf.Close(); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-	if s.tiles != nil {
-		if err := s.tiles.Close(); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-	return result
 }

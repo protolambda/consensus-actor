@@ -117,6 +117,14 @@ func ImportMain(clictx *cli.Context) {
 	logger.Info("goodbye")
 }
 
+func PerfMain(ctx *cli.Context) {
+
+}
+
+func TilesMain(ctx *cli.Context) {
+
+}
+
 func ServerMain(ctx *cli.Context) {
 	logger, err := SetupLogger(ctx)
 	if err != nil {

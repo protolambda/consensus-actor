@@ -3,8 +3,6 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
-	"io"
-
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -42,9 +40,8 @@ func tileDbKey(tileType uint8, tX uint64, tY uint64, zoom uint8) []byte {
 	return key[:]
 }
 
-func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
-	s.log.Info("updating tile column", "type", tileType, "tX", tX, "zoom", 0)
-	maxValidators := uint64(len(s.indicesBounded))
+func performanceToTiles(tilesDB *leveldb.DB, perfDB *leveldb.DB, indicesBounded []common.BoundedIndex, tileType uint8, tX uint64) error {
+	maxValidators := uint64(len(indicesBounded))
 
 	tilesY := (maxValidators + tileSize - 1) / tileSize
 	// each tile is an array of 4 byte items. tileSize consecutive of those form a row, and then tileSize rows.
@@ -57,7 +54,7 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 	for x := uint64(0); x < tileSize; x++ {
 		epoch := common.Epoch(tX*tileSize + x)
 		//fmt.Printf("processing epoch %d\n", epoch)
-		perf, err := s.getPerf(epoch)
+		perf, err := getPerf(perfDB, epoch)
 		if err != nil {
 			fmt.Printf("no data for epoch %d\n", epoch)
 			continue
@@ -136,17 +133,15 @@ func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 		key := tileDbKey(tileType, tX, uint64(tY), 0)
 		// compress the tile image
 		tile = snappy.Encode(nil, tile)
-		if err := s.tiles.Put(key, tile, nil); err != nil {
+		if err := tilesDB.Put(key, tile, nil); err != nil {
 			return fmt.Errorf("failed to write tile %d:%d (zoom 0): %v", tX, tY, err)
 		}
 	}
 	return nil
 }
 
-func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
-	s.log.Info("updating tile column", "type", tileType, "tX", tX, "zoom", zoom)
-
-	maxValidators := uint64(len(s.indicesBounded))
+func convTiles(tilesDB *leveldb.DB, indicesBounded []common.BoundedIndex, tileType uint8, tX uint64, zoom uint8) error {
+	maxValidators := uint64(len(indicesBounded))
 
 	tileSizeAbs := uint64(tileSize) << zoom
 	tilesY := (maxValidators + tileSizeAbs - 1) / tileSizeAbs
@@ -158,7 +153,7 @@ func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 		bottomRight := tileDbKey(tileType, tX*2+1, tY*2+1, zoom-1)
 
 		getTile := func(key []byte) ([]byte, error) {
-			tile, err := s.tiles.Get(key, nil)
+			tile, err := tilesDB.Get(key, nil)
 			if err == leveldb.ErrNotFound {
 				// use empty tile instead
 				tile = make([]byte, 4*tileSize*tileSize)
@@ -231,15 +226,15 @@ func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 		key := tileDbKey(tileType, tX, tY, zoom)
 		// compress the tile image
 		outTile = snappy.Encode(nil, outTile)
-		if err := s.tiles.Put(key, outTile, nil); err != nil {
+		if err := tilesDB.Put(key, outTile, nil); err != nil {
 			return fmt.Errorf("failed to write tile %d:%d (zoom %d): %v", tX, tY, zoom, err)
 		}
 	}
 	return nil
 }
 
-func (s *Server) lastTileEpoch(tileType uint8) (common.Epoch, error) {
-	iter := s.tiles.NewIterator(util.BytesPrefix(append([]byte(KeyTile), tileType, 0)), nil)
+func lastTileEpoch(tilesDB *leveldb.DB, tileType uint8) (common.Epoch, error) {
+	iter := tilesDB.NewIterator(util.BytesPrefix(append([]byte(KeyTile), tileType, 0)), nil)
 	defer iter.Release()
 	if iter.Last() {
 		epoch := common.Epoch(binary.BigEndian.Uint32(iter.Key()[3+1+1:3+1+1+4])) * tileSize
@@ -249,44 +244,10 @@ func (s *Server) lastTileEpoch(tileType uint8) (common.Epoch, error) {
 	}
 }
 
-func (s *Server) updateTilesMaybe() error {
-	lastTileEpoch, err := s.lastTileEpoch(0)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve last tile epoch: %v", err)
-	}
-	lastSlot, _, err := s.lastSlot()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve last block slot during tile update: %v", err)
-	}
-	lastBlockEpoch := s.spec.SlotToEpoch(lastSlot)
-	if lastTileEpoch/tileSize == lastBlockEpoch/tileSize {
-		// TODO: override if there are new blocks within the last tile
-		return io.EOF
-	}
+func resetTilesTyped(tilesDB *leveldb.DB, spec *common.Spec, tileType uint8, resetSlot common.Slot) error {
+	resetEpoch := spec.SlotToEpoch(resetSlot)
 
-	for tX := uint64(lastTileEpoch) / tileSize; tX <= uint64(lastBlockEpoch)/tileSize; tX++ {
-		if err := s.performanceToTiles(0, tX); err != nil {
-			return fmt.Errorf("failed to update zoom 0 tiles at tX %d: %v", tX, err)
-		}
-	}
-
-	for z := uint8(1); z <= maxZoom; z++ {
-		tileSizeAbs := uint64(tileSize) << z
-		tilesXStart := uint64(lastTileEpoch) / tileSizeAbs
-		tilesXEnd := (uint64(lastBlockEpoch) + tileSizeAbs - 1) / tileSizeAbs
-		for i := tilesXStart; i < tilesXEnd; i++ {
-			if err := s.convTiles(0, i, z); err != nil {
-				return fmt.Errorf("failed tile convolution layer at zoom %d tX %d: %v", z, i, err)
-			}
-		}
-	}
-	return nil
-}
-
-func (s *Server) resetTilesTyped(tileType uint8, resetSlot common.Slot) error {
-	resetEpoch := s.spec.SlotToEpoch(resetSlot)
-
-	lastEpoch, err := s.lastTileEpoch(tileType)
+	lastEpoch, err := lastTileEpoch(tilesDB, tileType)
 	if err != nil {
 		return err
 	}
@@ -313,19 +274,14 @@ func (s *Server) resetTilesTyped(tileType uint8, resetSlot common.Slot) error {
 		r.Limit[3+1] = z
 		binary.BigEndian.PutUint32(r.Limit[3+1+1:], end+1)
 
-		iter := s.tiles.NewIterator(r, nil)
+		iter := tilesDB.NewIterator(r, nil)
 		for iter.Next() {
 			batch.Delete(iter.Key())
 		}
 		iter.Release()
 	}
-	if err := s.tiles.Write(&batch, nil); err != nil {
+	if err := tilesDB.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to remove tile data of type %d, resetting to slot %d: %v", tileType, resetSlot, err)
 	}
 	return nil
-}
-
-func (s *Server) resetTiles(resetSlot common.Slot) error {
-	// TODO more types
-	return s.resetTilesTyped(0, resetSlot)
 }

@@ -52,11 +52,13 @@ type Server struct {
 	// moment that indicesBounded were loaded from
 	indicesSlot common.Slot
 
+	randao *leveldb.DB // TODO
 	blocks *leveldb.DB // blocks importing and blocks transform into
 	perf   *leveldb.DB // performance per epoch
 	tiles  *leveldb.DB // tile data
 
 	blocksLock sync.RWMutex
+	randaoLock sync.RWMutex
 	perfLock   sync.RWMutex
 	tilesLock  sync.RWMutex
 
@@ -176,17 +178,29 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 	}
 
 	// load dbs, and make sure to close whatever is already open if something fails.
-	if err := srv.loadBlocksDB(baseDir, ctx); err != nil {
+	if blocks, err := loadBlocksDB(baseDir, false, ctx); err != nil {
 		_ = srv.closeDBs()
 		return nil, err
+	} else {
+		srv.blocks = blocks
 	}
-	if err := srv.loadPerfDB(baseDir, ctx); err != nil {
+	if randao, err := loadRandaoDB(baseDir, false, ctx); err != nil {
 		_ = srv.closeDBs()
 		return nil, err
+	} else {
+		srv.randao = randao
 	}
-	if err := srv.loadTilesDB(baseDir, ctx); err != nil {
+	if perf, err := loadPerfDB(baseDir, false, ctx); err != nil {
 		_ = srv.closeDBs()
 		return nil, err
+	} else {
+		srv.perf = perf
+	}
+	if tiles, err := loadTilesDB(baseDir, false, ctx); err != nil {
+		_ = srv.closeDBs()
+		return nil, err
+	} else {
+		srv.tiles = tiles
 	}
 	return srv, nil
 }

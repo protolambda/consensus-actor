@@ -5,9 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"os"
-	"path/filepath"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
 	"github.com/protolambda/consensus-actor/flags"
@@ -15,6 +12,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"github.com/urfave/cli"
+	"os"
 )
 
 const lhBeaconBlockRootsPrefix = "bbr"
@@ -48,9 +46,11 @@ func NewImporter(ctx *cli.Context, log log.Logger) (*Importer, error) {
 		return nil, fmt.Errorf("failed to prepare base data dir: %v", err)
 	}
 
-	if err := imp.loadBlocksDB(baseDir, ctx); err != nil {
+	if blocks, err := loadBlocksDB(baseDir, false, ctx); err != nil {
 		_ = imp.Close()
 		return nil, err
+	} else {
+		imp.blocks = blocks
 	}
 	if err := imp.loadLighthouseChainDBMaybe(ctx); err != nil {
 		_ = imp.Close()
@@ -61,20 +61,6 @@ func NewImporter(ctx *cli.Context, log log.Logger) (*Importer, error) {
 		return nil, err
 	}
 	return imp, nil
-}
-
-func (s *Importer) loadBlocksDB(baseDir string, ctx *cli.Context) error {
-	cacheSize := ctx.Int(flags.DataBlocksCacheSizeFlag.Name)
-	blocksPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataBlocksDBFlag.Name))
-	if blocksPath == "" {
-		return fmt.Errorf("need blocks db path")
-	}
-	blocks, err := openDB(blocksPath, false, cacheSize)
-	if err != nil {
-		return fmt.Errorf("failed to open blocks db %q: %w", blocksPath, err)
-	}
-	s.blocks = blocks
-	return nil
 }
 
 func (s *Importer) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
