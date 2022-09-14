@@ -209,7 +209,7 @@ func (s *Server) Close() error {
 	}
 }
 
-func (s *Server) Sync() {
+func (s *Server) Run(ctx context.Context) error {
 	s.startHttpServer()
 
 	//syncReqs := make(chan struct{}, 1)
@@ -254,7 +254,7 @@ func (s *Server) Sync() {
 				result = multierror.Append(result, err)
 			}
 			closer <- result
-			return
+			return nil
 		}
 	}
 }

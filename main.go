@@ -35,10 +35,48 @@ func main() {
 		},
 		{
 			Name:        "server",
-			Usage:       "Serve app and sync live data",
-			Description: "Spins up a server that loads block data, processes it, builds tiles, and serves a large-scale map of consensus actor behavior.",
-			Action:      ServerMain,
-			Flags:       flags.ServerFlags,
+			Usage:       "Serve app",
+			Description: "Serves a large-scale map of consensus actor behavior. Live sync is experimental (disabled for now)",
+			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
+				return yolo.NewServer(clictx, log)
+			}),
+			Flags: flags.ServerFlags,
+		},
+		{
+			Name:        "randao",
+			Usage:       "Randao mix computation from block data",
+			Description: "Randao mix computation from block data",
+			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
+				return yolo.NewRandaoComputer(clictx, log)
+			}),
+			Flags: flags.RandaoFlags,
+		},
+		{
+			Name:        "indices",
+			Usage:       "Fetch bounded indices, to compute past validator shufflings with",
+			Description: "Fetch bounded indices, to compute past validator shufflings with",
+			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
+				return yolo.NewBoundedIndicesFetcher(clictx, log)
+			}),
+			Flags: flags.BoundedIndicesFlags,
+		},
+		{
+			Name:        "perf",
+			Usage:       "Compute and index past attester performance",
+			Description: "Compute and index past attester performance",
+			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
+				return yolo.NewPerfComputer(clictx, log)
+			}),
+			Flags: flags.PerfFlags,
+		},
+		{
+			Name:        "tiles",
+			Usage:       "Compute and store tiles of validator history to serve",
+			Description: "Compute and store tiles of validator history to serve",
+			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
+				return yolo.NewTileProcessor(clictx, log)
+			}),
+			Flags: flags.PerfFlags,
 		},
 	}
 	err := app.Run(os.Args)
@@ -119,32 +157,4 @@ func makeCommand(newCommand func(clictx *cli.Context, log log.Logger) (yolo.Comm
 		}
 		logger.Info("goodbye")
 	}
-}
-
-func ServerMain(ctx *cli.Context) {
-	logger, err := SetupLogger(ctx)
-	if err != nil {
-		log.Crit("failed to setup logger", "err", err) // os exit 1
-		return
-	}
-	server, err := yolo.NewServer(ctx, logger)
-	if err != nil {
-		logger.Crit("failed to create server", "err", err) // os exit 1
-		return
-	}
-	go server.Run()
-
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	<-interruptChannel
-
-	if err := server.Close(); err != nil {
-		logger.Crit("shutdown error", "err", err) // os exit 1
-	}
-	logger.Info("goodbye")
 }

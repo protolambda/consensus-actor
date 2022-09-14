@@ -35,8 +35,6 @@ func NewPerfComputer(ctx *cli.Context, log log.Logger) (*PerfComputer, error) {
 		endEpoch:   common.Epoch(ctx.Uint64(flags.PerfEndEpochFlag.Name)),
 	}
 
-	// TODO load spec
-
 	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")

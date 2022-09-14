@@ -24,7 +24,7 @@ const (
 	// The uncompressed value is 4 squares of tileSize x tileSize, one for R, one for G, B, and A
 	// The squares encode column by column.
 	//
-	// TODO: we can encode tiles in with R, G, B grouped together separately. Omit A.
+	// We can encode tiles in with R, G, B, A grouped together separately.
 	// And implement the image.Image interface to map back to an image.
 	// This way we compress better, and don't store as much alpha-channel data.
 	KeyTile string = "til"
