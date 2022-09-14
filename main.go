@@ -19,7 +19,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Flags = flags.GlobalFlags
-	app.Version = "0.0.2"
+	app.Version = "0.0.3"
 	app.Name = "consensus-actor"
 	app.Usage = "Consensus actor analysis tool by @protolambda"
 	app.Description = "Build and serve a maps-like view of the consensus actor data of ethereum."
