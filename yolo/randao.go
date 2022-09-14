@@ -62,9 +62,6 @@ func updateRandao(spec *common.Spec, randaoDB *leveldb.DB, blocks *leveldb.DB, p
 }
 
 func getRandao(db *leveldb.DB, epoch common.Epoch) ([32]byte, error) {
-	//if epoch == 0 {
-	//	return genesisRandao, nil
-	//}
 	var key [3 + 8]byte
 	copy(key[:3], KeyRandaoMix)
 	binary.BigEndian.PutUint64(key[3:], uint64(epoch))

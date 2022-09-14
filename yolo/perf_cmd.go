@@ -45,6 +45,13 @@ func NewPerfComputer(ctx *cli.Context, log log.Logger) (*PerfComputer, error) {
 		return nil, fmt.Errorf("failed to prepare base data dir: %v", err)
 	}
 
+	spec, err := loadSpec(filepath.Join(baseDir, specFileName))
+	if err != nil {
+		return nil, err
+	} else {
+		imp.spec = spec
+	}
+
 	indicesPath := filepath.Join(baseDir, boundedIndicesFileName)
 	indices, err := loadBoundedIndices(indicesPath)
 	if err != nil {
@@ -64,7 +71,7 @@ func NewPerfComputer(ctx *cli.Context, log log.Logger) (*PerfComputer, error) {
 	} else {
 		imp.randao = randao
 	}
-	if perf, err := loadPerfDB(baseDir, true, ctx); err != nil {
+	if perf, err := loadPerfDB(baseDir, false, ctx); err != nil {
 		_ = imp.Close()
 		return nil, err
 	} else {

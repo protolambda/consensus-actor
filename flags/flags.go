@@ -185,6 +185,10 @@ var (
 	}
 )
 
+var SysInitFlags = []cli.Flag{
+	BeaconAPIAddrFlag,
+}
+
 var RandaoFlags = []cli.Flag{
 	RandaoStartEpochFlag,
 	RandaoEndEpochFlag,

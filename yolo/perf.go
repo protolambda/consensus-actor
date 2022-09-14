@@ -63,7 +63,7 @@ func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, ra
 		count = spec.SLOTS_PER_EPOCH
 	}
 
-	for i := common.Slot(0); i < count; i++ {
+	for i := common.Slot(0); i < spec.SLOTS_PER_EPOCH; i++ {
 		slot := prevStart + i
 		blockRoot, err := getBlockRoot(blocksDB, slot)
 		if err != nil {
@@ -84,7 +84,6 @@ func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, ra
 		}
 	}
 
-	// TODO is this correct in genesis case?
 	prevShuf, err := shuffling(spec, randaoDB, indicesBounded, prevEp)
 	if err != nil {
 		return fmt.Errorf("failed to get shuffling for epoch %d: %v", prevEp, err)

@@ -95,10 +95,6 @@ func getBlock(blocks *leveldb.DB, spec *common.Spec, slot common.Slot) (*BlockDa
 }
 
 func getBlockRoot(blocks *leveldb.DB, slot common.Slot) (common.Root, error) {
-	// TODO
-	//if slot == 0 {
-	//	return genesisBlockRoot, nil // not stored in actual db, not really a full block either, just the root of latest block header in genesis state
-	//}
 	var key [3 + 8]byte
 	copy(key[:3], KeyBlockRoot)
 	binary.BigEndian.PutUint64(key[3:], uint64(slot))

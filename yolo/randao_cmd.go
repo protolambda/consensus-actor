@@ -10,6 +10,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/urfave/cli"
 	"os"
+	"path/filepath"
 )
 
 type RandaoComputer struct {
@@ -31,8 +32,6 @@ func NewRandaoComputer(ctx *cli.Context, log log.Logger) (*RandaoComputer, error
 		endEpoch:   common.Epoch(ctx.Uint64(flags.RandaoEndEpochFlag.Name)),
 	}
 
-	// TODO load spec
-
 	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
@@ -41,13 +40,19 @@ func NewRandaoComputer(ctx *cli.Context, log log.Logger) (*RandaoComputer, error
 		return nil, fmt.Errorf("failed to prepare base data dir: %v", err)
 	}
 
+	spec, err := loadSpec(filepath.Join(baseDir, specFileName))
+	if err != nil {
+		return nil, err
+	} else {
+		imp.spec = spec
+	}
 	if blocks, err := loadBlocksDB(baseDir, true, ctx); err != nil {
 		_ = imp.Close()
 		return nil, err
 	} else {
 		imp.blocks = blocks
 	}
-	if randao, err := loadRandaoDB(baseDir, true, ctx); err != nil {
+	if randao, err := loadRandaoDB(baseDir, false, ctx); err != nil {
 		_ = imp.Close()
 		return nil, err
 	} else {

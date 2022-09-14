@@ -20,8 +20,6 @@ type TileProcessor struct {
 
 	perf  *leveldb.DB
 	tiles *leveldb.DB
-
-	spec *common.Spec
 }
 
 func NewTileProcessor(ctx *cli.Context, log log.Logger) (*TileProcessor, error) {
@@ -30,8 +28,6 @@ func NewTileProcessor(ctx *cli.Context, log log.Logger) (*TileProcessor, error) 
 		startEpoch: common.Epoch(ctx.Uint64(flags.TilesStartEpochFlag.Name)),
 		endEpoch:   common.Epoch(ctx.Uint64(flags.TilesEndEpochFlag.Name)),
 	}
-
-	// TODO load spec
 
 	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
 	if baseDir == "" {
@@ -48,6 +44,13 @@ func NewTileProcessor(ctx *cli.Context, log log.Logger) (*TileProcessor, error) 
 		imp.perf = perf
 	}
 
+	if tiles, err := loadTilesDB(baseDir, false, ctx); err != nil {
+		_ = imp.Close()
+		return nil, err
+	} else {
+		imp.tiles = tiles
+	}
+
 	return imp, nil
 }
 
@@ -56,6 +59,11 @@ func (s *TileProcessor) Close() error {
 	if s.perf != nil {
 		if err := s.perf.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close perf db: %w", err))
+		}
+	}
+	if s.tiles != nil {
+		if err := s.tiles.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close tiles db: %w", err))
 		}
 	}
 	return result

@@ -10,6 +10,7 @@ const (
 	tileSizeSquared   = tileSize * tileSize
 
 	boundedIndicesFileName = "bounded_indices.json"
+	specFileName           = "spec.json"
 	dataBlocksDBName       = "blocks"
 	dataRandaoDBName       = "randao"
 	dataPerfDBName         = "perf"
