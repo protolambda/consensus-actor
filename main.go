@@ -28,8 +28,10 @@ func main() {
 			Name:        "import",
 			Usage:       "Import blocks from Lighthouse",
 			Description: "Imports blocks from a lighthouse DB (db must not be locked, i.e. lighthouse must not be running).",
-			Action:      ImportMain,
-			Flags:       flags.ImportFlags,
+			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
+				return yolo.NewBlocksImporter(clictx, log)
+			}),
+			Flags: flags.ImportFlags,
 		},
 		{
 			Name:        "server",
@@ -73,56 +75,50 @@ func SetupLogger(ctx *cli.Context) (log.Logger, error) {
 	return logger, nil
 }
 
-func ImportMain(clictx *cli.Context) {
-	logger, err := SetupLogger(clictx)
-	if err != nil {
-		log.Crit("failed to setup logger", "err", err) // os exit 1
-		return
+func makeCommand(newCommand func(clictx *cli.Context, log log.Logger) (yolo.Command, error)) func(clitx *cli.Context) {
+	return func(clictx *cli.Context) {
+		logger, err := SetupLogger(clictx)
+		if err != nil {
+			log.Crit("failed to setup logger", "err", err) // os exit 1
+			return
+		}
+		imp, err := newCommand(clictx, logger)
+		if err != nil {
+			logger.Crit("failed to create main command", "err", err) // os exit 1
+			return
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		runDone := make(chan error)
+		go func() {
+			err := imp.Run(ctx)
+			runDone <- err
+		}()
+
+		interruptChannel := make(chan os.Signal, 1)
+		signal.Notify(interruptChannel, []os.Signal{
+			os.Interrupt,
+			os.Kill,
+			syscall.SIGTERM,
+			syscall.SIGQUIT,
+		}...)
+		go func() {
+			<-interruptChannel
+			logger.Info("closing on interrupt signal")
+			cancel()
+		}()
+
+		err = <-runDone
+		if err != nil {
+			logger.Error("stopped with error", "err", err)
+		} else {
+			logger.Info("import completed")
+		}
+
+		if err := imp.Close(); err != nil {
+			logger.Crit("shutdown error", "err", err) // os exit 1
+		}
+		logger.Info("goodbye")
 	}
-	imp, err := yolo.NewBlocksImporter(clictx, logger)
-	if err != nil {
-		logger.Crit("failed to create importer", "err", err) // os exit 1
-		return
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	runDone := make(chan error)
-	go func() {
-		err := imp.Run(ctx)
-		runDone <- err
-	}()
-
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	go func() {
-		<-interruptChannel
-		logger.Info("closing on interrupt signal")
-		cancel()
-	}()
-
-	err = <-runDone
-	if err != nil {
-		logger.Error("stopped import with error", "err", err)
-	} else {
-		logger.Info("import completed")
-	}
-
-	if err := imp.Close(); err != nil {
-		logger.Crit("shutdown error", "err", err) // os exit 1
-	}
-	logger.Info("goodbye")
-}
-
-func PerfMain(ctx *cli.Context) {
-
-}
-
-func TilesMain(ctx *cli.Context) {
-
 }
 
 func ServerMain(ctx *cli.Context) {
