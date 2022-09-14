@@ -79,7 +79,7 @@ func ImportMain(clictx *cli.Context) {
 		log.Crit("failed to setup logger", "err", err) // os exit 1
 		return
 	}
-	imp, err := yolo.NewImporter(clictx, logger)
+	imp, err := yolo.NewBlocksImporter(clictx, logger)
 	if err != nil {
 		logger.Crit("failed to create importer", "err", err) // os exit 1
 		return

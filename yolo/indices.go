@@ -2,10 +2,12 @@ package yolo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/protolambda/eth2api"
 	"github.com/protolambda/eth2api/client/beaconapi"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
+	"os"
 )
 
 func fetchIndicesBounded(ctx context.Context, client eth2api.Client) ([]common.BoundedIndex, error) {
@@ -30,4 +32,16 @@ func fetchIndicesBounded(ctx context.Context, client eth2api.Client) ([]common.B
 		}
 	}
 	return indices, nil
+}
+
+func loadBoundedIndices(jsonPath string) ([]common.BoundedIndex, error) {
+	data, err := os.ReadFile(jsonPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read bounded indices: %w", err)
+	}
+	var x []common.BoundedIndex
+	if err := json.Unmarshal(data, &x); err != nil {
+		return nil, fmt.Errorf("failed to decode bounded indices: %w", err)
+	}
+	return x, nil
 }

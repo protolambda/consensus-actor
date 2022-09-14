@@ -18,7 +18,7 @@ import (
 const lhBeaconBlockRootsPrefix = "bbr"
 const lhBeaconBlocksPrefix = "blk"
 
-type Importer struct {
+type BlocksImporter struct {
 	log log.Logger
 
 	startSlot common.Slot
@@ -29,8 +29,8 @@ type Importer struct {
 	lhChainDB *leveldb.DB // lighthouse chain data, stores block contents
 }
 
-func NewImporter(ctx *cli.Context, log log.Logger) (*Importer, error) {
-	imp := &Importer{
+func NewBlocksImporter(ctx *cli.Context, log log.Logger) (*BlocksImporter, error) {
+	imp := &BlocksImporter{
 		log:       log,
 		startSlot: common.Slot(ctx.Uint64(flags.ImportStartSlotFlag.Name)),
 		endSlot:   common.Slot(ctx.Uint64(flags.ImportEndSlotFlag.Name)),
@@ -63,7 +63,7 @@ func NewImporter(ctx *cli.Context, log log.Logger) (*Importer, error) {
 	return imp, nil
 }
 
-func (s *Importer) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
+func (s *BlocksImporter) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
 	cacheSize := ctx.Int(flags.ImportLighthouseChainCacheSizeFlag.Name)
 	chPath := ctx.String(flags.ImportLighthouseChainFlag.Name)
 	if chPath == "" {
@@ -78,7 +78,7 @@ func (s *Importer) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
 	return nil
 }
 
-func (s *Importer) loadLighthouseFreezerDBMaybe(ctx *cli.Context) error {
+func (s *BlocksImporter) loadLighthouseFreezerDBMaybe(ctx *cli.Context) error {
 	cacheSize := ctx.Int(flags.ImportLighthouseFreezerCacheSizeFlag.Name)
 	frPath := ctx.String(flags.ImportLighthouseFreezerFlag.Name)
 	if frPath == "" {
@@ -93,7 +93,7 @@ func (s *Importer) loadLighthouseFreezerDBMaybe(ctx *cli.Context) error {
 	return nil
 }
 
-func (s *Importer) Close() error {
+func (s *BlocksImporter) Close() error {
 	var result error
 	if s.blocks != nil {
 		if err := s.blocks.Close(); err != nil {
@@ -113,7 +113,7 @@ func (s *Importer) Close() error {
 	return result
 }
 
-func (s *Importer) Run(ctx context.Context) error {
+func (s *BlocksImporter) Run(ctx context.Context) error {
 	if s.endSlot < s.startSlot {
 		return fmt.Errorf("end slot cannot be lower than start slot: %d < %d", s.endSlot, s.startSlot)
 	}

@@ -47,6 +47,7 @@ const (
 // if currEp == 2, then process 1 and 2, filtered for target == 1
 // etc.
 func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, randaoDB *leveldb.DB, indicesBounded []common.BoundedIndex, currEp common.Epoch) error {
+	// TODO handle 0 case
 	if currEp == 0 {
 		return errors.New("epoch 0 should never be processed, performance data is only available with epoch 1 completed")
 	}

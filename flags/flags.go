@@ -16,30 +16,6 @@ var (
 		EnvVar: prefixEnvVar("DATA_DIR"),
 		Value:  "consensus_actor_data",
 	}
-	DataBlocksDBFlag = cli.StringFlag{
-		Name:   "data.blocks",
-		Usage:  "Blocks level db path, relative to data.dir",
-		EnvVar: prefixEnvVar("DATA_BLOCKS"),
-		Value:  "blocks",
-	}
-	DataRandaoDBFlag = cli.StringFlag{
-		Name:   "data.randao",
-		Usage:  "Randao level db path, relative to data.dir",
-		EnvVar: prefixEnvVar("DATA_RANDAO"),
-		Value:  "randao",
-	}
-	DataPerfDBFlag = cli.StringFlag{
-		Name:   "data.perf",
-		Usage:  "Performance level db path, relative to data.dir",
-		EnvVar: prefixEnvVar("DATA_PERF"),
-		Value:  "perf",
-	}
-	DataTilesDBFlag = cli.StringFlag{
-		Name:   "data.tiles",
-		Usage:  "Tiles level db path, relative to data.dir",
-		EnvVar: prefixEnvVar("DATA_TILES"),
-		Value:  "tiles",
-	}
 	DataBlocksCacheSizeFlag = cli.IntFlag{
 		Name:   "data.blocks.cachesize",
 		Usage:  "Leveldb memory cache size in megabytes for data blocks cache",
@@ -64,6 +40,12 @@ var (
 		EnvVar: prefixEnvVar("DATA_TILES_CACHE_SIZE"),
 		Value:  4000,
 	}
+	BeaconAPIAddrFlag = cli.StringFlag{
+		Name:   "beacon.api",
+		Usage:  "Beacon HTTP API endpoint",
+		EnvVar: prefixEnvVar("BEACON_API"),
+		Value:  "http://localhost:5052",
+	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
 		Usage:  "The lowest log level that will be output",
@@ -85,10 +67,6 @@ var (
 
 var GlobalFlags = []cli.Flag{
 	DataDirFlag,
-	DataBlocksDBFlag,
-	DataRandaoDBFlag,
-	DataPerfDBFlag,
-	DataTilesDBFlag,
 	DataBlocksCacheSizeFlag,
 	DataRandaoCacheSizeFlag,
 	DataPerfCacheSizeFlag,
@@ -123,12 +101,6 @@ var (
 		Usage:  "Http endpoint for frontend to talk to server with. Empty if the same server.",
 		EnvVar: prefixEnvVar("PUBLIC_API"),
 		Value:  "",
-	}
-	BeaconAPIAddrFlag = cli.StringFlag{
-		Name:   "beacon.api",
-		Usage:  "Beacon HTTP API endpoint",
-		EnvVar: prefixEnvVar("BEACON_API"),
-		Value:  "http://localhost:5052",
 	}
 	SyncDisableBlocks = cli.BoolFlag{
 		Name:   "sync.disable.blocks",
@@ -197,3 +169,71 @@ var ImportFlags = []cli.Flag{
 	ImportStartSlotFlag,
 	ImportEndSlotFlag,
 }
+
+var (
+	RandaoStartEpochFlag = cli.Uint64Flag{
+		Name:   "randao.startepoch",
+		Usage:  "Start epoch (inclusive) of randao import",
+		EnvVar: prefixEnvVar("RANDAO_START_EPOCH"),
+		Value:  uint64(0),
+	}
+	RandaoEndEpochFlag = cli.Uint64Flag{
+		Name:   "randao.endepoch",
+		Usage:  "End epoch (exclusive) of randao import",
+		EnvVar: prefixEnvVar("RANDAO_END_EPOCH"),
+		Value:  ^uint64(0),
+	}
+)
+
+var RandaoFlags = []cli.Flag{
+	RandaoStartEpochFlag,
+	RandaoEndEpochFlag,
+}
+
+var BoundedIndicesFlags = []cli.Flag{
+	BeaconAPIAddrFlag,
+}
+
+var (
+	PerfStartEpochFlag = cli.Uint64Flag{
+		Name:   "perf.startepoch",
+		Usage:  "Start epoch (inclusive) of perf import",
+		EnvVar: prefixEnvVar("PERF_START_EPOCH"),
+		Value:  uint64(0),
+	}
+	PerfEndEpochFlag = cli.Uint64Flag{
+		Name:   "perf.endepoch",
+		Usage:  "End epoch (exclusive) of perf import",
+		EnvVar: prefixEnvVar("PERF_END_EPOCH"),
+		Value:  ^uint64(0),
+	}
+)
+
+var PerfFlags = []cli.Flag{
+	PerfStartEpochFlag,
+	PerfEndEpochFlag,
+}
+
+var (
+	TilesStartEpochFlag = cli.Uint64Flag{
+		Name:   "tiles.startepoch",
+		Usage:  "Start epoch (inclusive) of tiles import",
+		EnvVar: prefixEnvVar("TILES_START_EPOCH"),
+		Value:  uint64(0),
+	}
+	TilesEndEpochFlag = cli.Uint64Flag{
+		Name:   "tiles.endepoch",
+		Usage:  "End epoch (exclusive) of tiles import",
+		EnvVar: prefixEnvVar("TILES_END_EPOCH"),
+		Value:  ^uint64(0),
+	}
+)
+
+var TilesFlags = []cli.Flag{
+	TilesStartEpochFlag,
+	TilesEndEpochFlag,
+}
+
+// TODO refactor server
+
+// TODO reset command

@@ -40,8 +40,18 @@ func tileDbKey(tileType uint8, tX uint64, tY uint64, zoom uint8) []byte {
 	return key[:]
 }
 
-func performanceToTiles(tilesDB *leveldb.DB, perfDB *leveldb.DB, indicesBounded []common.BoundedIndex, tileType uint8, tX uint64) error {
-	maxValidators := uint64(len(indicesBounded))
+func performanceToTiles(tilesDB *leveldb.DB, perfDB *leveldb.DB, tileType uint8, tX uint64) error {
+	maxValidators := uint64(0)
+	for x := uint64(0); x < tileSize; x++ {
+		epoch := common.Epoch(tX*tileSize + x)
+		perf, err := getPerf(perfDB, epoch)
+		if err != nil {
+			return fmt.Errorf("failed to get performance: %w", err)
+		}
+		if uint64(len(perf)) > maxValidators {
+			maxValidators = uint64(len(perf))
+		}
+	}
 
 	tilesY := (maxValidators + tileSize - 1) / tileSize
 	// each tile is an array of 4 byte items. tileSize consecutive of those form a row, and then tileSize rows.
@@ -140,17 +150,25 @@ func performanceToTiles(tilesDB *leveldb.DB, perfDB *leveldb.DB, indicesBounded 
 	return nil
 }
 
-func convTiles(tilesDB *leveldb.DB, indicesBounded []common.BoundedIndex, tileType uint8, tX uint64, zoom uint8) error {
-	maxValidators := uint64(len(indicesBounded))
-
-	tileSizeAbs := uint64(tileSize) << zoom
-	tilesY := (maxValidators + tileSizeAbs - 1) / tileSizeAbs
-	for tY := uint64(0); tY < tilesY; tY += 1 {
+func convTiles(tilesDB *leveldb.DB, tileType uint8, tX uint64, zoom uint8) error {
+	for tY := uint64(0); true; tY += 1 {
 		topLeft := tileDbKey(tileType, tX*2, tY*2, zoom-1)
 		topRight := tileDbKey(tileType, tX*2+1, tY*2, zoom-1)
 		// remember, y is downwards
 		bottomLeft := tileDbKey(tileType, tX*2, tY*2+1, zoom-1)
 		bottomRight := tileDbKey(tileType, tX*2+1, tY*2+1, zoom-1)
+
+		hasY := false
+		for _, key := range [][]byte{topLeft, topRight, bottomLeft, bottomRight} {
+			if haz, err := tilesDB.Has(key, nil); err != nil {
+				return fmt.Errorf("failed to check key presence: %w", err)
+			} else if haz {
+				hasY = true
+			}
+		}
+		if !hasY {
+			break
+		}
 
 		getTile := func(key []byte) ([]byte, error) {
 			tile, err := tilesDB.Get(key, nil)

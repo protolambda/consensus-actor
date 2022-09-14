@@ -8,12 +8,13 @@ import (
 
 func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 	s.log.Info("updating tile column", "type", tileType, "tX", tX, "zoom", 0)
-	return performanceToTiles(s.tiles, s.perf, s.indicesBounded, tileType, tX)
+	return performanceToTiles(s.tiles, s.perf, tileType, tX)
 }
 
 func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
 	s.log.Info("updating tile column", "type", tileType, "tX", tX, "zoom", zoom)
-	return convTiles(s.tiles, s.indicesBounded, tileType, tX, zoom)
+
+	return convTiles(s.tiles, tileType, tX, zoom)
 }
 
 func (s *Server) updateTilesMaybe() error {

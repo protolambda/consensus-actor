@@ -59,8 +59,7 @@ func updateRandao(log log.Logger, spec *common.Spec, randaoDB *leveldb.DB, block
 	if err := blocks.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to write randao mix of epoch %d to db: %v", epoch, err)
 	}
-	log.Trace("updated randao mixes", "epoch", epoch)
-	if epoch%1000 == 0 {
+	if epoch%100 == 0 {
 		log.Info("updated randao mixes", "epoch", epoch)
 	}
 	return nil

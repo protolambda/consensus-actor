@@ -10,7 +10,7 @@ import (
 
 func loadBlocksDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB, error) {
 	cacheSize := ctx.Int(flags.DataBlocksCacheSizeFlag.Name)
-	blocksPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataBlocksDBFlag.Name))
+	blocksPath := filepath.Join(baseDir, dataBlocksDBName)
 	if blocksPath == "" {
 		return nil, fmt.Errorf("need blocks db path")
 	}
@@ -23,7 +23,7 @@ func loadBlocksDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB,
 
 func loadRandaoDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB, error) {
 	cacheSize := ctx.Int(flags.DataRandaoCacheSizeFlag.Name)
-	randaoPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataRandaoDBFlag.Name))
+	randaoPath := filepath.Join(baseDir, dataRandaoDBName)
 	if randaoPath == "" {
 		return nil, fmt.Errorf("need randao db path")
 	}
@@ -36,7 +36,7 @@ func loadRandaoDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB,
 
 func loadPerfDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB, error) {
 	cacheSize := ctx.Int(flags.DataPerfCacheSizeFlag.Name)
-	perfPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataPerfDBFlag.Name))
+	perfPath := filepath.Join(baseDir, dataPerfDBName)
 	if perfPath == "" {
 		return nil, fmt.Errorf("need perf db path")
 	}
@@ -49,7 +49,7 @@ func loadPerfDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB, e
 
 func loadTilesDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB, error) {
 	cacheSize := ctx.Int(flags.DataTilesCacheSizeFlag.Name)
-	tilesPath := filepath.Join(baseDir, ctx.GlobalString(flags.DataTilesDBFlag.Name))
+	tilesPath := filepath.Join(baseDir, dataTilesDBName)
 	if tilesPath == "" {
 		return nil, fmt.Errorf("need tiles db path")
 	}
