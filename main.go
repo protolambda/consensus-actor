@@ -138,6 +138,9 @@ func makeCommand(newCommand func(clictx *cli.Context, log log.Logger) (yolo.Comm
 		runDone := make(chan error)
 		go func() {
 			err := imp.Run(ctx)
+			if err == ctx.Err() {
+				err = nil
+			}
 			runDone <- err
 		}()
 

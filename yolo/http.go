@@ -42,9 +42,10 @@ func (s *Server) startHttpServer() {
 
 	go func() {
 		err := s.srv.ListenAndServe()
-		s.log.Error("http server listen error, shutting down app", "err", err)
-		if err := s.Close(); err != nil {
-			s.log.Error("error during shutdown", "err", err)
+		if err == nil || err == http.ErrServerClosed {
+			s.log.Info("closed http server")
+		} else {
+			s.log.Error("http server listen error, shutting down app", "err", err)
 		}
 	}()
 }
