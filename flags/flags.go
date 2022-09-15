@@ -16,6 +16,34 @@ var (
 		EnvVar: prefixEnvVar("DATA_DIR"),
 		Value:  "consensus_actor_data",
 	}
+	LogLevelFlag = cli.StringFlag{
+		Name:   "log.level",
+		Usage:  "The lowest log level that will be output",
+		Value:  "info",
+		EnvVar: prefixEnvVar("LOG_LEVEL"),
+	}
+	LogFormatFlag = cli.StringFlag{
+		Name:   "log.format",
+		Usage:  "Format the log output. Supported formats: 'text', 'json'",
+		Value:  "text",
+		EnvVar: prefixEnvVar("LOG_FORMAT"),
+	}
+	LogColorFlag = cli.BoolFlag{
+		Name:   "log.color",
+		Usage:  "Color the log output",
+		EnvVar: prefixEnvVar("LOG_COLOR"),
+	}
+)
+
+var GlobalFlags = []cli.Flag{
+	DataDirFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
+}
+
+// not global, but shared between some commands
+var (
 	DataBlocksCacheSizeFlag = cli.IntFlag{
 		Name:   "data.blocks.cachesize",
 		Usage:  "Leveldb memory cache size in megabytes for data blocks cache",
@@ -45,23 +73,6 @@ var (
 		Usage:  "Beacon HTTP API endpoint",
 		EnvVar: prefixEnvVar("BEACON_API"),
 		Value:  "http://localhost:5052",
-	}
-	LogLevelFlag = cli.StringFlag{
-		Name:   "log.level",
-		Usage:  "The lowest log level that will be output",
-		Value:  "info",
-		EnvVar: prefixEnvVar("LOG_LEVEL"),
-	}
-	LogFormatFlag = cli.StringFlag{
-		Name:   "log.format",
-		Usage:  "Format the log output. Supported formats: 'text', 'json'",
-		Value:  "text",
-		EnvVar: prefixEnvVar("LOG_FORMAT"),
-	}
-	LogColorFlag = cli.BoolFlag{
-		Name:   "log.color",
-		Usage:  "Color the log output",
-		EnvVar: prefixEnvVar("LOG_COLOR"),
 	}
 )
 
@@ -98,8 +109,7 @@ var (
 	}
 )
 
-var ServerFlags = []cli.Flag{
-	DataDirFlag,
+var ServerFlags = append([]cli.Flag{
 	DataTilesCacheSizeFlag,
 
 	HttpAddrFlag,
@@ -112,11 +122,7 @@ var ServerFlags = []cli.Flag{
 	//DataBlocksCacheSizeFlag,
 	//DataRandaoCacheSizeFlag,
 	//DataPerfCacheSizeFlag,
-
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
+}, GlobalFlags...)
 
 // import flags
 var (
@@ -160,8 +166,7 @@ var (
 	}
 )
 
-var ImportFlags = []cli.Flag{
-	DataDirFlag,
+var ImportFlags = append([]cli.Flag{
 	DataBlocksCacheSizeFlag,
 	ImportLighthouseChainFlag,
 	ImportLighthouseFreezerFlag,
@@ -169,10 +174,7 @@ var ImportFlags = []cli.Flag{
 	ImportLighthouseFreezerCacheSizeFlag,
 	ImportStartSlotFlag,
 	ImportEndSlotFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
+}, GlobalFlags...)
 
 var (
 	RandaoStartEpochFlag = cli.Uint64Flag{
@@ -189,34 +191,22 @@ var (
 	}
 )
 
-var SysInitFlags = []cli.Flag{
-	DataDirFlag,
+var SysInitFlags = append([]cli.Flag{
 	BeaconAPIAddrFlag,
 	DataRandaoCacheSizeFlag,
 	DataBlocksCacheSizeFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
+}, GlobalFlags...)
 
-var RandaoFlags = []cli.Flag{
-	DataDirFlag,
+var RandaoFlags = append([]cli.Flag{
 	RandaoStartEpochFlag,
 	RandaoEndEpochFlag,
 	DataRandaoCacheSizeFlag,
 	DataBlocksCacheSizeFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
+}, GlobalFlags...)
 
-var BoundedIndicesFlags = []cli.Flag{
-	DataDirFlag,
+var BoundedIndicesFlags = append([]cli.Flag{
 	BeaconAPIAddrFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
+}, GlobalFlags...)
 
 var (
 	PerfStartEpochFlag = cli.Uint64Flag{
@@ -233,17 +223,13 @@ var (
 	}
 )
 
-var PerfFlags = []cli.Flag{
-	DataDirFlag,
+var PerfFlags = append([]cli.Flag{
 	PerfStartEpochFlag,
 	PerfEndEpochFlag,
 	DataRandaoCacheSizeFlag,
 	DataBlocksCacheSizeFlag,
 	DataPerfCacheSizeFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
+}, GlobalFlags...)
 
 var (
 	TilesStartEpochFlag = cli.Uint64Flag{
@@ -260,16 +246,12 @@ var (
 	}
 )
 
-var TilesFlags = []cli.Flag{
-	DataDirFlag,
+var TilesFlags = append([]cli.Flag{
 	TilesStartEpochFlag,
 	TilesEndEpochFlag,
 	DataPerfCacheSizeFlag,
 	DataTilesCacheSizeFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
+}, GlobalFlags...)
 
 // TODO refactor server
 

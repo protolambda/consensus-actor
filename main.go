@@ -18,6 +18,7 @@ func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 
 	app := cli.NewApp()
+	app.Flags = flags.GlobalFlags
 	app.Version = "0.0.3"
 	app.Name = "consensus-actor"
 	app.Usage = "Consensus actor analysis tool by @protolambda"
@@ -103,7 +104,7 @@ func SetupLogger(ctx *cli.Context) (log.Logger, error) {
 		logFmt = log.JSONFormat()
 	case "json-pretty":
 		logFmt = log.JSONFormatEx(true, true)
-	case "text", "terminal", "":
+	case "text", "terminal":
 		logFmt = log.TerminalFormat(ctx.GlobalBool(flags.LogColorFlag.Name))
 	default:
 		return nil, fmt.Errorf("unrecognized log format: %q", fmtStr)
