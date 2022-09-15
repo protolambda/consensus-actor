@@ -76,7 +76,16 @@ func main() {
 			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
 				return yolo.NewTileProcessor(clictx, log)
 			}),
-			Flags: flags.PerfFlags,
+			Flags: flags.TilesFlags,
+		},
+		{
+			Name:        "init",
+			Usage:       "Initialize system",
+			Description: "Initialize system",
+			Action: makeCommand(func(clictx *cli.Context, log log.Logger) (yolo.Command, error) {
+				return yolo.NewSystemInitializer(clictx, log)
+			}),
+			Flags: flags.SysInitFlags,
 		},
 	}
 	err := app.Run(os.Args)
