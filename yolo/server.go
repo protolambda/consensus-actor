@@ -210,7 +210,7 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	s.startHttpServer()
+	go s.startHttpServer()
 
 	//syncReqs := make(chan struct{}, 1)
 	//
@@ -230,6 +230,7 @@ func (s *Server) Run(ctx context.Context) error {
 	//defer slotTicker.Stop()
 	//
 	//reqSync()
+	s.log.Info("started web server")
 
 	for {
 		select {
