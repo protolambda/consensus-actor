@@ -198,15 +198,14 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 
 func (s *Server) Close() error {
 	s.log.Info("closing server...")
-	s.cancel()
-	closing := make(chan error)
-	select {
-	case s.close <- closing:
-		return <-closing
-	default:
-		// already requested close
-		return fmt.Errorf("already closing")
+	var result error
+	if err := s.srv.Close(); err != nil {
+		result = multierror.Append(result, err)
 	}
+	if err := s.closeDBs(); err != nil {
+		result = multierror.Append(result, err)
+	}
+	return result
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -246,16 +245,8 @@ func (s *Server) Run(ctx context.Context) error {
 		//	} else {
 		//		reqSync()
 		//	}
-		case closer := <-s.close:
-			var result error
-			if err := s.srv.Close(); err != nil {
-				result = multierror.Append(result, err)
-			}
-			if err := s.closeDBs(); err != nil {
-				result = multierror.Append(result, err)
-			}
-			closer <- result
-			return nil
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 	}
 }
