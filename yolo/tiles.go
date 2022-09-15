@@ -46,7 +46,8 @@ func performanceToTiles(tilesDB *leveldb.DB, perfDB *leveldb.DB, tileType uint8,
 		epoch := common.Epoch(tX*tileSize + x)
 		perf, err := getPerf(perfDB, epoch)
 		if err != nil {
-			return fmt.Errorf("failed to get performance: %w", err)
+			// no data for this epoch
+			continue
 		}
 		if uint64(len(perf)) > maxValidators {
 			maxValidators = uint64(len(perf))
