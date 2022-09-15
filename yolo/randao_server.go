@@ -23,7 +23,7 @@ func (s *Server) updateRandaoMaybe() error {
 	if prevEpoch >= blocksEpoch {
 		return io.EOF
 	}
-	return updateRandao(s.spec, s.randao, s.blocks, prevEpoch)
+	return updateRandao(s.log, s.spec, s.randao, s.blocks, prevEpoch)
 }
 
 func (s *Server) getRandao(epoch common.Epoch) ([32]byte, error) {
