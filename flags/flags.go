@@ -65,17 +65,6 @@ var (
 	}
 )
 
-var GlobalFlags = []cli.Flag{
-	DataDirFlag,
-	DataBlocksCacheSizeFlag,
-	DataRandaoCacheSizeFlag,
-	DataPerfCacheSizeFlag,
-	DataTilesCacheSizeFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
-}
-
 // server flags
 var (
 	HttpAddrFlag = cli.StringFlag{
@@ -110,12 +99,20 @@ var (
 )
 
 var ServerFlags = []cli.Flag{
+	DataDirFlag,
+	DataTilesCacheSizeFlag,
+
 	HttpAddrFlag,
 	HttpPortFlag,
 	SiteTitleFlag,
 	PublicAPIFlag,
-	BeaconAPIAddrFlag,
-	SyncDisableBlocks,
+
+	//BeaconAPIAddrFlag,
+	//SyncDisableBlocks,
+	//DataBlocksCacheSizeFlag,
+	//DataRandaoCacheSizeFlag,
+	//DataPerfCacheSizeFlag,
+
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
@@ -164,12 +161,17 @@ var (
 )
 
 var ImportFlags = []cli.Flag{
+	DataDirFlag,
+	DataBlocksCacheSizeFlag,
 	ImportLighthouseChainFlag,
 	ImportLighthouseFreezerFlag,
 	ImportLighthouseChainCacheSizeFlag,
 	ImportLighthouseFreezerCacheSizeFlag,
 	ImportStartSlotFlag,
 	ImportEndSlotFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
 }
 
 var (
@@ -188,16 +190,32 @@ var (
 )
 
 var SysInitFlags = []cli.Flag{
+	DataDirFlag,
 	BeaconAPIAddrFlag,
+	DataRandaoCacheSizeFlag,
+	DataBlocksCacheSizeFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
 }
 
 var RandaoFlags = []cli.Flag{
+	DataDirFlag,
 	RandaoStartEpochFlag,
 	RandaoEndEpochFlag,
+	DataRandaoCacheSizeFlag,
+	DataBlocksCacheSizeFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
 }
 
 var BoundedIndicesFlags = []cli.Flag{
+	DataDirFlag,
 	BeaconAPIAddrFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
 }
 
 var (
@@ -216,8 +234,15 @@ var (
 )
 
 var PerfFlags = []cli.Flag{
+	DataDirFlag,
 	PerfStartEpochFlag,
 	PerfEndEpochFlag,
+	DataRandaoCacheSizeFlag,
+	DataBlocksCacheSizeFlag,
+	DataPerfCacheSizeFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
 }
 
 var (
@@ -236,8 +261,14 @@ var (
 )
 
 var TilesFlags = []cli.Flag{
+	DataDirFlag,
 	TilesStartEpochFlag,
 	TilesEndEpochFlag,
+	DataPerfCacheSizeFlag,
+	DataTilesCacheSizeFlag,
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
 }
 
 // TODO refactor server

@@ -18,7 +18,6 @@ func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 
 	app := cli.NewApp()
-	app.Flags = flags.GlobalFlags
 	app.Version = "0.0.3"
 	app.Name = "consensus-actor"
 	app.Usage = "Consensus actor analysis tool by @protolambda"
@@ -160,8 +159,6 @@ func makeCommand(newCommand func(clictx *cli.Context, log log.Logger) (yolo.Comm
 		err = <-runDone
 		if err != nil {
 			logger.Error("stopped with error", "err", err)
-		} else {
-			logger.Info("import completed")
 		}
 
 		if err := imp.Close(); err != nil {
