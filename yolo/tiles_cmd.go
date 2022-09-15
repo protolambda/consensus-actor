@@ -84,7 +84,7 @@ func (s *TileProcessor) Run(ctx context.Context) error {
 
 	for tX := uint64(s.startEpoch) / tileSize; tX <= uint64(s.endEpoch)/tileSize; tX++ {
 		log.Info("creating base tiles", "tX", tX, "zoom", 0)
-		if err := performanceToTiles(s.perf, s.tiles, 0, tX); err != nil {
+		if err := performanceToTiles(s.log, s.tiles, s.perf, 0, tX); err != nil {
 			return fmt.Errorf("failed to update zoom 0 tiles at tX %d: %v", tX, err)
 		}
 	}

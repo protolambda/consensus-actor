@@ -3,6 +3,7 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -40,7 +41,7 @@ func tileDbKey(tileType uint8, tX uint64, tY uint64, zoom uint8) []byte {
 	return key[:]
 }
 
-func performanceToTiles(tilesDB *leveldb.DB, perfDB *leveldb.DB, tileType uint8, tX uint64) error {
+func performanceToTiles(log log.Logger, tilesDB *leveldb.DB, perfDB *leveldb.DB, tileType uint8, tX uint64) error {
 	maxValidators := uint64(0)
 	for x := uint64(0); x < tileSize; x++ {
 		epoch := common.Epoch(tX*tileSize + x)
@@ -67,7 +68,7 @@ func performanceToTiles(tilesDB *leveldb.DB, perfDB *leveldb.DB, tileType uint8,
 		//fmt.Printf("processing epoch %d\n", epoch)
 		perf, err := getPerf(perfDB, epoch)
 		if err != nil {
-			fmt.Printf("no data for epoch %d\n", epoch)
+			log.Info("no performance data for epoch", "epoch", epoch)
 			continue
 			//return fmt.Errorf("failed to get epoch data %d: %v", epoch, err)
 		}

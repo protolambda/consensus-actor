@@ -8,7 +8,7 @@ import (
 
 func (s *Server) performanceToTiles(tileType uint8, tX uint64) error {
 	s.log.Info("updating tile column", "type", tileType, "tX", tX, "zoom", 0)
-	return performanceToTiles(s.tiles, s.perf, tileType, tX)
+	return performanceToTiles(s.log, s.tiles, s.perf, tileType, tX)
 }
 
 func (s *Server) convTiles(tileType uint8, tX uint64, zoom uint8) error {
