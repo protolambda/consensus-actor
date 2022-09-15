@@ -124,16 +124,18 @@ var ServerFlags = []cli.Flag{
 // import flags
 var (
 	ImportLighthouseChainFlag = cli.StringFlag{
-		Name:     "lighthouse.chain",
-		Usage:    "Path to lighthouse chain leveldb dir.",
-		EnvVar:   prefixEnvVar("IMPORT_LIGHTHOUSE_CHAIN"),
-		Required: true,
+		Name:      "lighthouse.chain",
+		Usage:     "Path to lighthouse chain leveldb dir.",
+		EnvVar:    prefixEnvVar("IMPORT_LIGHTHOUSE_CHAIN"),
+		Required:  true,
+		TakesFile: true,
 	}
 	ImportLighthouseFreezerFlag = cli.StringFlag{
-		Name:     "lighthouse.freezer",
-		Usage:    "Path to lighthouse freezer leveldb dir.",
-		EnvVar:   prefixEnvVar("IMPORT_LIGHTHOUSE_FREEZER"),
-		Required: true,
+		Name:      "lighthouse.freezer",
+		Usage:     "Path to lighthouse freezer leveldb dir.",
+		EnvVar:    prefixEnvVar("IMPORT_LIGHTHOUSE_FREEZER"),
+		Required:  true,
+		TakesFile: true,
 	}
 	ImportLighthouseChainCacheSizeFlag = cli.IntFlag{
 		Name:   "lighthouse.chain.cachesize",

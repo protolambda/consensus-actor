@@ -88,6 +88,15 @@ func (s *RandaoComputer) Run(ctx context.Context) error {
 	if lastEpoch < s.startEpoch {
 		return fmt.Errorf("missing randao data, expected to start from at most epoch %d, but got %d", lastEpoch, s.startEpoch)
 	}
+	lastBlockSlot, err := lastSlot(s.blocks)
+	if err != nil {
+		return fmt.Errorf("could not read max block slot: %w", err)
+	}
+	lastBlockEpoch := s.spec.SlotToEpoch(lastBlockSlot)
+	if lastBlockEpoch < s.endEpoch {
+		s.log.Info("reducing end epoch to available blocks", "end", lastBlockEpoch)
+		s.endEpoch = lastBlockEpoch
+	}
 
 	for i := s.startEpoch; i < s.endEpoch; i++ {
 		if i%100 == 0 {

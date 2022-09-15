@@ -73,6 +73,14 @@ func (s *TileProcessor) Run(ctx context.Context) error {
 	if s.endEpoch < s.startEpoch {
 		return fmt.Errorf("end epoch cannot be lower than start epoch: %d < %d", s.endEpoch, s.startEpoch)
 	}
+	lastPerfEpoch, err := lastPerfEpoch(s.perf)
+	if err != nil {
+		return fmt.Errorf("could not read max block slot: %w", err)
+	}
+	if lastPerfEpoch < s.endEpoch {
+		s.log.Info("reducing end epoch to available performance data", "end", lastPerfEpoch)
+		s.endEpoch = lastPerfEpoch
+	}
 
 	for tX := uint64(s.startEpoch) / tileSize; tX <= uint64(s.endEpoch)/tileSize; tX++ {
 		log.Info("creating base tiles", "tX", tX, "zoom", 0)

@@ -111,7 +111,24 @@ func getBlockRoot(blocks *leveldb.DB, slot common.Slot) (common.Root, error) {
 	return *(*[32]byte)(root), nil
 }
 
-func lastSlot(blocks *leveldb.DB, genesisBlockRoot common.Root) (common.Slot, common.Root, error) {
+func lastSlot(blocks *leveldb.DB) (common.Slot, error) {
+	blockIter := blocks.NewIterator(util.BytesPrefix([]byte(KeyBlockRoot)), nil)
+	// big-endian slot number, last key is highest slot block we have
+	if blockIter.Last() { // if we have a block, get it
+		slot := common.Slot(binary.BigEndian.Uint64(blockIter.Key()[3:]))
+		blockIter.Release()
+		if err := blockIter.Error(); err != nil {
+			return slot, fmt.Errorf("failed to get last block root from db: %v", err)
+		}
+		return slot, nil
+	} else {
+		blockIter.Release()
+		// no block in DB, return genesis
+		return 0, nil
+	}
+}
+
+func lastSlotAndRoot(blocks *leveldb.DB, genesisBlockRoot common.Root) (common.Slot, common.Root, error) {
 	blockIter := blocks.NewIterator(util.BytesPrefix([]byte(KeyBlockRoot)), nil)
 	// big-endian slot number, last key is highest slot block we have
 	if blockIter.Last() { // if we have a block, get it

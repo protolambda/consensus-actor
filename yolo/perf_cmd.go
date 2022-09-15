@@ -103,6 +103,15 @@ func (s *PerfComputer) Run(ctx context.Context) error {
 	if s.endEpoch < s.startEpoch {
 		return fmt.Errorf("end epoch cannot be lower than start epoch: %d < %d", s.endEpoch, s.startEpoch)
 	}
+	lastBlockSlot, err := lastSlot(s.blocks)
+	if err != nil {
+		return fmt.Errorf("could not read max block slot: %w", err)
+	}
+	lastBlockEpoch := s.spec.SlotToEpoch(lastBlockSlot)
+	if lastBlockEpoch < s.endEpoch {
+		s.log.Info("reducing end epoch to available blocks", "end", lastBlockEpoch)
+		s.endEpoch = lastBlockEpoch
+	}
 
 	for i := s.startEpoch; i < s.endEpoch; i++ {
 		if i%100 == 0 {

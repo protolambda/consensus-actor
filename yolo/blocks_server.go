@@ -26,7 +26,7 @@ func (s *Server) getBlockRoot(slot common.Slot) (common.Root, error) {
 }
 
 func (s *Server) lastSlot() (common.Slot, common.Root, error) {
-	return lastSlot(s.blocks, s.genesisBlockRoot)
+	return lastSlotAndRoot(s.blocks, s.genesisBlockRoot)
 }
 
 func (s *Server) updateBlocksMaybe() error {
