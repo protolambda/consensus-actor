@@ -14,7 +14,11 @@ func loadBlocksDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB,
 	if blocksPath == "" {
 		return nil, fmt.Errorf("need blocks db path")
 	}
-	blocks, err := openDB(blocksPath, readOnly, cacheSize)
+	writeBuf := cacheSize
+	if readOnly {
+		writeBuf = 0
+	}
+	blocks, err := openDB(blocksPath, readOnly, cacheSize, writeBuf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open blocks db %q: %w", blocksPath, err)
 	}
@@ -27,7 +31,11 @@ func loadRandaoDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB,
 	if randaoPath == "" {
 		return nil, fmt.Errorf("need randao db path")
 	}
-	randao, err := openDB(randaoPath, readOnly, cacheSize)
+	writeBuf := cacheSize
+	if readOnly {
+		writeBuf = 0
+	}
+	randao, err := openDB(randaoPath, readOnly, cacheSize, writeBuf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open randao db %q: %w", randaoPath, err)
 	}
@@ -40,7 +48,11 @@ func loadPerfDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB, e
 	if perfPath == "" {
 		return nil, fmt.Errorf("need perf db path")
 	}
-	perf, err := openDB(perfPath, readOnly, cacheSize)
+	writeBuf := cacheSize
+	if readOnly {
+		writeBuf = 0
+	}
+	perf, err := openDB(perfPath, readOnly, cacheSize, writeBuf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open perf db %q: %w", perfPath, err)
 	}
@@ -53,7 +65,11 @@ func loadTilesDB(baseDir string, readOnly bool, ctx *cli.Context) (*leveldb.DB, 
 	if tilesPath == "" {
 		return nil, fmt.Errorf("need tiles db path")
 	}
-	tiles, err := openDB(tilesPath, readOnly, cacheSize)
+	writeBuf := cacheSize
+	if readOnly {
+		writeBuf = 0
+	}
+	tiles, err := openDB(tilesPath, readOnly, cacheSize, writeBuf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open tiles db %q: %w", tilesPath, err)
 	}

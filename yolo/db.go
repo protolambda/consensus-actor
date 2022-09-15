@@ -12,13 +12,14 @@ import (
 // Filepath to locate db at.
 // Readonly to limit db writes.
 // Cache in megabytes to trade memory for better performance.
-func openDB(file string, readonly bool, cache int) (*leveldb.DB, error) {
+// writeBuf in megabytes to improve writing performance
+func openDB(file string, readonly bool, cache int, writeBuf int) (*leveldb.DB, error) {
 	options := &opt.Options{
 		Filter:                 filter.NewBloomFilter(10),
 		DisableSeeksCompaction: true,
 		OpenFilesCacheCapacity: 1024,
 		BlockCacheCapacity:     cache * opt.MiB,
-		WriteBuffer:            cache * opt.MiB,
+		WriteBuffer:            writeBuf * opt.MiB,
 		ReadOnly:               readonly,
 	}
 
