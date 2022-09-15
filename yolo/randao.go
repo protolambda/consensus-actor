@@ -55,7 +55,7 @@ func updateRandao(spec *common.Spec, randaoDB *leveldb.DB, blocks *leveldb.DB, p
 		binary.BigEndian.PutUint64(key[3:], uint64(epoch))
 		batch.Put(key[:], mix[:])
 	}
-	if err := blocks.Write(&batch, nil); err != nil {
+	if err := randaoDB.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to write randao mix of epoch %d to db: %v", epoch, err)
 	}
 	return nil
