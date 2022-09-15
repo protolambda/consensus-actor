@@ -103,7 +103,7 @@ func SetupLogger(ctx *cli.Context) (log.Logger, error) {
 		logFmt = log.JSONFormat()
 	case "json-pretty":
 		logFmt = log.JSONFormatEx(true, true)
-	case "text", "terminal":
+	case "text", "terminal", "":
 		logFmt = log.TerminalFormat(ctx.GlobalBool(flags.LogColorFlag.Name))
 	default:
 		return nil, fmt.Errorf("unrecognized log format: %q", fmtStr)
