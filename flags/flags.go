@@ -164,6 +164,12 @@ var (
 		EnvVar: prefixEnvVar("IMPORT_END_SLOT"),
 		Value:  ^uint64(0),
 	}
+	ImportWorkersFlag = cli.Uint64Flag{
+		Name:   "import.workers",
+		Usage:  "Number of parallel workers to import blocks with",
+		EnvVar: prefixEnvVar("IMPORT_WORKERS"),
+		Value:  8,
+	}
 )
 
 var ImportFlags = append([]cli.Flag{
@@ -174,6 +180,7 @@ var ImportFlags = append([]cli.Flag{
 	ImportLighthouseFreezerCacheSizeFlag,
 	ImportStartSlotFlag,
 	ImportEndSlotFlag,
+	ImportWorkersFlag,
 }, GlobalFlags...)
 
 var (

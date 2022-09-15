@@ -13,6 +13,7 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"github.com/urfave/cli"
 	"os"
+	"sync"
 )
 
 const lhBeaconBlockRootsPrefix = "bbr"
@@ -24,6 +25,8 @@ type BlocksImporter struct {
 	startSlot common.Slot
 	endSlot   common.Slot
 
+	workers uint64
+
 	blocks    *leveldb.DB // blocks db to import into
 	lhFreezer *leveldb.DB // lighthouse freezer data, stores beacon block roots in batches
 	lhChainDB *leveldb.DB // lighthouse chain data, stores block contents
@@ -34,6 +37,7 @@ func NewBlocksImporter(ctx *cli.Context, log log.Logger) (*BlocksImporter, error
 		log:       log,
 		startSlot: common.Slot(ctx.Uint64(flags.ImportStartSlotFlag.Name)),
 		endSlot:   common.Slot(ctx.Uint64(flags.ImportEndSlotFlag.Name)),
+		workers:   ctx.Uint64(flags.ImportWorkersFlag.Name),
 		lhFreezer: nil,
 		lhChainDB: nil,
 	}
@@ -114,9 +118,34 @@ func (s *BlocksImporter) Close() error {
 }
 
 func (s *BlocksImporter) Run(ctx context.Context) error {
+	out := make(chan error, s.workers)
+	var wg sync.WaitGroup
+	wg.Add(int(s.workers))
+	for i := uint64(0); i < s.workers; i++ {
+		go func(id uint64) {
+			err := s.importBlocks(ctx, id, s.workers)
+			if err != nil {
+				out <- fmt.Errorf("worker %d error: %w", id, err)
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	close(out)
+	var result error
+	for err := range out {
+		if err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	return result
+}
+
+func (s *BlocksImporter) importBlocks(ctx context.Context, workerIndex uint64, workers uint64) error {
 	if s.endSlot < s.startSlot {
 		return fmt.Errorf("end slot cannot be lower than start slot: %d < %d", s.endSlot, s.startSlot)
 	}
+	log := s.log.New("worker", workerIndex, "workers", workers)
 
 	iter := s.lhFreezer.NewIterator(util.BytesPrefix([]byte(lhBeaconBlockRootsPrefix)), nil)
 	defer iter.Release()
@@ -144,6 +173,10 @@ func (s *BlocksImporter) Run(ctx context.Context) error {
 		if keyInt == 0 {
 			continue
 		}
+		if keyInt%workers != workerIndex {
+			continue
+		}
+
 		value := iter.Value()
 		slot := common.Slot((keyInt - 1) * 128)
 
@@ -166,7 +199,7 @@ func (s *BlocksImporter) Run(ctx context.Context) error {
 			}
 			progress := slot - s.startSlot
 			if progress%1000 == 0 {
-				s.log.Info("importing blocks from lighthouse db", "progress", progress, "slot", slot, "gaps", gapSlots)
+				log.Info("importing blocks from lighthouse db", "progress", progress, "slot", slot, "gaps", gapSlots)
 			}
 			if slot >= s.endSlot {
 				break
@@ -227,6 +260,6 @@ func (s *BlocksImporter) Run(ctx context.Context) error {
 			break
 		}
 	}
-	s.log.Info("finished importing blocks")
+	log.Info("finished importing blocks")
 	return nil
 }
