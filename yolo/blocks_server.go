@@ -1,24 +1,23 @@
 package yolo
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"time"
+
 	"github.com/protolambda/eth2api"
 	"github.com/protolambda/eth2api/client/beaconapi"
 	"github.com/protolambda/zrnt/eth2/beacon/altair"
 	"github.com/protolambda/zrnt/eth2/beacon/bellatrix"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/beacon/phase0"
-	"github.com/protolambda/ztyp/codec"
 	"github.com/protolambda/ztyp/tree"
 	"github.com/syndtr/goleveldb/leveldb"
-	"time"
 )
 
 func (s *Server) getBlock(slot common.Slot) (*BlockData, error) {
-	return getBlock(s.blocks, s.spec, slot)
+	return getBlock(s.blocks, s.lhChainSnapshot, s.spec, slot)
 }
 
 func (s *Server) getBlockRoot(slot common.Slot) (common.Root, error) {
@@ -159,17 +158,18 @@ func (s *Server) updateBlocksMaybe() error {
 			commonSlot, commonBlockRoot, parentRoot, blockRoot)
 	}
 
+	// TODO: nowhere to import blocks to, we rely on lighthouse db
 	var batch leveldb.Batch
-	{
-		var key [3 + 8]byte
-		copy(key[:3], KeyBlock)
-		binary.BigEndian.PutUint64(key[3:], uint64(blockSlot))
-		var buf bytes.Buffer
-		if err := dest.Data.Serialize(s.spec, codec.NewEncodingWriter(&buf)); err != nil {
-			return fmt.Errorf("failed to encode new block %s at slot %d: %v", blockRoot, blockSlot, err)
-		}
-		batch.Put(key[:], buf.Bytes())
-	}
+	//{
+	//	var key [3 + 8]byte
+	//	copy(key[:3], KeyBlock)
+	//	binary.BigEndian.PutUint64(key[3:], uint64(blockSlot))
+	//	var buf bytes.Buffer
+	//	if err := dest.Data.Serialize(s.spec, codec.NewEncodingWriter(&buf)); err != nil {
+	//		return fmt.Errorf("failed to encode new block %s at slot %d: %v", blockRoot, blockSlot, err)
+	//	}
+	//	batch.Put(key[:], buf.Bytes())
+	//}
 	{
 		var key [3 + 8]byte
 		copy(key[:3], KeyBlockRoot)

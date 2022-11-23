@@ -9,16 +9,16 @@ import (
 	"syscall"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli"
+
 	"github.com/protolambda/consensus-actor/flags"
 	"github.com/protolambda/consensus-actor/yolo"
-	"github.com/urfave/cli"
 )
 
 func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
 
 	app := cli.NewApp()
-	app.Flags = flags.GlobalFlags
 	app.Version = "0.0.3"
 	app.Name = "consensus-actor"
 	app.Usage = "Consensus actor analysis tool by @protolambda"
@@ -95,8 +95,8 @@ func main() {
 }
 
 func SetupLogger(ctx *cli.Context) (log.Logger, error) {
-	fmtStr := ctx.GlobalString(flags.LogFormatFlag.Name)
-	lvlStr := ctx.GlobalString(flags.LogLevelFlag.Name)
+	fmtStr := ctx.String(flags.LogFormatFlag.Name)
+	lvlStr := ctx.String(flags.LogLevelFlag.Name)
 
 	var logFmt log.Format
 	switch fmtStr {

@@ -3,13 +3,15 @@ package yolo
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
-	"github.com/protolambda/consensus-actor/flags"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/urfave/cli"
-	"os"
+
+	"github.com/protolambda/consensus-actor/flags"
 )
 
 type TileProcessor struct {
@@ -29,7 +31,7 @@ func NewTileProcessor(ctx *cli.Context, log log.Logger) (*TileProcessor, error) 
 		endEpoch:   common.Epoch(ctx.Uint64(flags.TilesEndEpochFlag.Name)),
 	}
 
-	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
+	baseDir := ctx.String(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}

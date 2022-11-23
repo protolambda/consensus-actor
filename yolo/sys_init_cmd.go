@@ -5,9 +5,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
-	"github.com/protolambda/consensus-actor/flags"
 	"github.com/protolambda/eth2api"
 	"github.com/protolambda/eth2api/client/configapi"
 	"github.com/protolambda/eth2api/client/debugapi"
@@ -16,10 +20,8 @@ import (
 	"github.com/protolambda/ztyp/tree"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/urfave/cli"
-	"net/http"
-	"os"
-	"path/filepath"
-	"time"
+
+	"github.com/protolambda/consensus-actor/flags"
 )
 
 type SystemInitializer struct {
@@ -46,7 +48,7 @@ func NewSystemInitializer(ctx *cli.Context, log log.Logger) (*SystemInitializer,
 			Codec: eth2api.JSONCodec{},
 		},
 	}
-	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
+	baseDir := ctx.String(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}

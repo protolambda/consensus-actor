@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/protolambda/consensus-actor/flags"
-	"github.com/protolambda/eth2api"
-	"github.com/urfave/cli"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/protolambda/eth2api"
+	"github.com/urfave/cli"
+
+	"github.com/protolambda/consensus-actor/flags"
 )
 
 type BoundedIndicesFetcher struct {
@@ -35,7 +37,7 @@ func NewBoundedIndicesFetcher(ctx *cli.Context, log log.Logger) (*BoundedIndices
 			Codec: eth2api.JSONCodec{},
 		},
 	}
-	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
+	baseDir := ctx.String(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}

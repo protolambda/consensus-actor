@@ -124,34 +124,38 @@ var ServerFlags = append([]cli.Flag{
 	//DataPerfCacheSizeFlag,
 }, GlobalFlags...)
 
-// import flags
+// lighthouse dbs
 var (
-	ImportLighthouseChainFlag = cli.StringFlag{
+	LighthouseChainFlag = cli.StringFlag{
 		Name:      "lighthouse.chain",
 		Usage:     "Path to lighthouse chain leveldb dir.",
 		EnvVar:    prefixEnvVar("IMPORT_LIGHTHOUSE_CHAIN"),
 		Required:  true,
 		TakesFile: true,
 	}
-	ImportLighthouseFreezerFlag = cli.StringFlag{
+	LighthouseFreezerFlag = cli.StringFlag{
 		Name:      "lighthouse.freezer",
 		Usage:     "Path to lighthouse freezer leveldb dir.",
 		EnvVar:    prefixEnvVar("IMPORT_LIGHTHOUSE_FREEZER"),
 		Required:  true,
 		TakesFile: true,
 	}
-	ImportLighthouseChainCacheSizeFlag = cli.IntFlag{
+	LighthouseChainCacheSizeFlag = cli.IntFlag{
 		Name:   "lighthouse.chain.cachesize",
 		Usage:  "Leveldb memory cache size in megabytes for chain db cache",
 		EnvVar: prefixEnvVar("IMPORT_LIGHTHOUSE_CHAIN_CACHE_SIZE"),
-		Value:  2000,
+		Value:  4000,
 	}
-	ImportLighthouseFreezerCacheSizeFlag = cli.IntFlag{
+	LighthouseFreezerCacheSizeFlag = cli.IntFlag{
 		Name:   "lighthouse.freezer.cachesize",
 		Usage:  "Leveldb memory cache size in megabytes for freezer db cache",
 		EnvVar: prefixEnvVar("IMPORT_LIGHTHOUSE_FREEZER_CACHE_SIZE"),
-		Value:  2000,
+		Value:  4000,
 	}
+)
+
+// import flags
+var (
 	ImportStartSlotFlag = cli.Uint64Flag{
 		Name:   "import.startslot",
 		Usage:  "Start slot (inclusive) of block import",
@@ -164,23 +168,16 @@ var (
 		EnvVar: prefixEnvVar("IMPORT_END_SLOT"),
 		Value:  ^uint64(0),
 	}
-	ImportWorkersFlag = cli.Uint64Flag{
-		Name:   "import.workers",
-		Usage:  "Number of parallel workers to import blocks with",
-		EnvVar: prefixEnvVar("IMPORT_WORKERS"),
-		Value:  8,
-	}
 )
 
 var ImportFlags = append([]cli.Flag{
 	DataBlocksCacheSizeFlag,
-	ImportLighthouseChainFlag,
-	ImportLighthouseFreezerFlag,
-	ImportLighthouseChainCacheSizeFlag,
-	ImportLighthouseFreezerCacheSizeFlag,
+	LighthouseChainFlag,
+	LighthouseFreezerFlag,
+	LighthouseChainCacheSizeFlag,
+	LighthouseFreezerCacheSizeFlag,
 	ImportStartSlotFlag,
 	ImportEndSlotFlag,
-	ImportWorkersFlag,
 }, GlobalFlags...)
 
 var (
@@ -209,6 +206,10 @@ var RandaoFlags = append([]cli.Flag{
 	RandaoEndEpochFlag,
 	DataRandaoCacheSizeFlag,
 	DataBlocksCacheSizeFlag,
+	LighthouseChainFlag,
+	LighthouseChainCacheSizeFlag,
+	//LighthouseFreezerFlag,
+	//LighthouseFreezerCacheSizeFlag,
 }, GlobalFlags...)
 
 var BoundedIndicesFlags = append([]cli.Flag{
@@ -236,6 +237,8 @@ var PerfFlags = append([]cli.Flag{
 	DataRandaoCacheSizeFlag,
 	DataBlocksCacheSizeFlag,
 	DataPerfCacheSizeFlag,
+	LighthouseChainFlag,
+	LighthouseChainCacheSizeFlag,
 }, GlobalFlags...)
 
 var (

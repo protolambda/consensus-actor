@@ -5,28 +5,18 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/protolambda/zrnt/eth2/beacon/altair"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/beacon/phase0"
 	"github.com/protolambda/ztyp/codec"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 const (
-	// KeyBlock is a:
-	// 3 byte prefix for keying beacon block roots, followed by:
-	// 8 byte big-endian slot number
-	//
-	// The value is a SSZ-encoded beacon block (no compression).
-	// Depending on the slot, different block types may be encoded:
-	// phase.SignedBeaconBlock
-	// altair.SignedBeaconBlock
-	// SignedBeaconBlockLH (bellatrix, blinded execution payload, aka just the execution payload header)
-	//
-	// Some blocks may be missing.
-	KeyBlock string = "blk"
-
 	// KeyBlockRoot is a:
 	// 3 byte prefix for keying beacon block roots, followed by:
 	// 8 byte big-endian slot number
@@ -46,22 +36,31 @@ type BlockData struct {
 
 var ErrBlockNotFound = errors.New("block not found")
 
-func getBlock(blocks *leveldb.DB, spec *common.Spec, slot common.Slot) (*BlockData, error) {
-	var key [3 + 8]byte
-	copy(key[:3], KeyBlock)
-	binary.BigEndian.PutUint64(key[3:], uint64(slot))
-	data, err := blocks.Get(key[:], nil)
+func getBlock(blocks *leveldb.DB, lhChainDB *leveldb.Snapshot, spec *common.Spec, slot common.Slot) (*BlockData, error) {
+	root, err := getBlockRoot(blocks, slot)
 	if err != nil {
-		if err == leveldb.ErrNotFound {
-			return nil, ErrBlockNotFound
-		}
-		return nil, err
+		return nil, fmt.Errorf("failed to find block root for given slot %d: %w", slot, err)
 	}
+	var tmpKey [3 + 32]byte
+	copy(tmpKey[:3], lhBeaconBlocksPrefix)
+	copy(tmpKey[3:], root[:])
+	data, err := lhChainDB.Get(tmpKey[:], &opt.ReadOptions{
+		DontFillCache: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("lighthouse chain db is missing contents referenced by root %s for slot %d db index: %w", root, slot, err)
+	}
+	return parseBlock(spec, data, slot)
+}
 
+func parseBlock(spec *common.Spec, data []byte, slot common.Slot) (*BlockData, error) {
 	if uint64(spec.BELLATRIX_FORK_EPOCH)*uint64(spec.SLOTS_PER_EPOCH) <= uint64(slot) {
 		var dest SignedBeaconBlockLH
 		if err := dest.Deserialize(spec, codec.NewDecodingReader(bytes.NewReader(data), uint64(len(data)))); err != nil {
 			return nil, err
+		}
+		if dest.Message.Slot != slot {
+			return nil, ErrBlockNotFound
 		}
 		return &BlockData{
 			Slot:         slot,
@@ -74,6 +73,9 @@ func getBlock(blocks *leveldb.DB, spec *common.Spec, slot common.Slot) (*BlockDa
 		if err := dest.Deserialize(spec, codec.NewDecodingReader(bytes.NewReader(data), uint64(len(data)))); err != nil {
 			return nil, err
 		}
+		if dest.Message.Slot != slot {
+			return nil, ErrBlockNotFound
+		}
 		return &BlockData{
 			Slot:         slot,
 			StateRoot:    dest.Message.StateRoot,
@@ -85,6 +87,9 @@ func getBlock(blocks *leveldb.DB, spec *common.Spec, slot common.Slot) (*BlockDa
 		if err := dest.Deserialize(spec, codec.NewDecodingReader(bytes.NewReader(data), uint64(len(data)))); err != nil {
 			return nil, err
 		}
+		if dest.Message.Slot != slot {
+			return nil, ErrBlockNotFound
+		}
 		return &BlockData{
 			Slot:         slot,
 			StateRoot:    dest.Message.StateRoot,
@@ -92,6 +97,29 @@ func getBlock(blocks *leveldb.DB, spec *common.Spec, slot common.Slot) (*BlockDa
 			RandaoReveal: dest.Message.Body.RandaoReveal,
 		}, nil
 	}
+}
+
+func getAllBlockRoots(blocks *leveldb.DB, log log.Logger) (map[common.Root]common.Slot, error) {
+	iter := blocks.NewIterator(util.BytesPrefix([]byte(KeyBlockRoot)), nil)
+	defer iter.Release()
+	roots := map[common.Root]common.Slot{}
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		var root common.Root
+		copy(root[:], value)
+		if root == (common.Root{}) {
+			continue
+		}
+		slot := common.Slot(binary.BigEndian.Uint64(key[3:]))
+		if _, ok := roots[root]; !ok || slot < roots[root] { // pick the lowest. The higher ones are gap slots
+			roots[root] = slot
+		}
+		if len(roots)%1000 == 0 {
+			log.Info("block roots", "count", len(roots))
+		}
+	}
+	return roots, nil
 }
 
 func getBlockRoot(blocks *leveldb.DB, slot common.Slot) (common.Root, error) {
@@ -168,7 +196,7 @@ func resetBlocks(blocks *leveldb.DB, slot common.Slot, prev common.Slot) error {
 		}
 	}
 
-	deletePrefix(KeyBlock)
+	//deletePrefix(KeyBlock)
 	deletePrefix(KeyBlockRoot)
 
 	if err := blocks.Write(&batch, nil); err != nil {

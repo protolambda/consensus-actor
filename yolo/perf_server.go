@@ -1,8 +1,9 @@
 package yolo
 
 import (
-	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"io"
+
+	"github.com/protolambda/zrnt/eth2/beacon/common"
 )
 
 func (s *Server) getPerf(currEp common.Epoch) ([]ValidatorPerformance, error) {
@@ -27,7 +28,7 @@ func (s *Server) updatePerfMaybe() error {
 		if perfEpoch%100 == 0 {
 			s.log.Info("updating performance data", "epoch", perfEpoch+1)
 		}
-		return processPerf(s.perf, s.spec, s.blocks, s.randao, s.indicesBounded, perfEpoch+1)
+		return processPerf(s.perf, s.lhChainSnapshot, s.spec, s.blocks, s.randao, s.indicesBounded, perfEpoch+1)
 	}
 	return io.EOF
 }

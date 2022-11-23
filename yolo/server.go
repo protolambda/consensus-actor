@@ -3,19 +3,21 @@ package yolo
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/hashicorp/go-multierror"
-	"github.com/protolambda/consensus-actor/flags"
-	"github.com/protolambda/eth2api"
-	"github.com/protolambda/zrnt/eth2/beacon"
-	"github.com/protolambda/zrnt/eth2/beacon/common"
-	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/urfave/cli"
 	"html/template"
 	"net"
 	"net/http"
 	"os"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/hashicorp/go-multierror"
+	"github.com/protolambda/eth2api"
+	"github.com/protolambda/zrnt/eth2/beacon"
+	"github.com/protolambda/zrnt/eth2/beacon/common"
+	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/urfave/cli"
+
+	"github.com/protolambda/consensus-actor/flags"
 )
 
 type Server struct {
@@ -47,6 +49,9 @@ type Server struct {
 	blocks *leveldb.DB // blocks importing and blocks transform into
 	perf   *leveldb.DB // performance per epoch
 	tiles  *leveldb.DB // tile data
+
+	lhChainDB       *leveldb.DB // TODO: cheap hack to read directly from LH db so we don't have to copy it all over
+	lhChainSnapshot *leveldb.Snapshot
 
 	blocksLock sync.RWMutex
 	randaoLock sync.RWMutex
@@ -129,7 +134,7 @@ func NewServer(ctx *cli.Context, log log.Logger) (*Server, error) {
 	//	genesisBlockRoot = headerCopy.HashTreeRoot(tree.GetHashFn())
 	//}
 
-	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
+	baseDir := ctx.String(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}

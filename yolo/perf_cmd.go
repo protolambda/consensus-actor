@@ -3,14 +3,16 @@ package yolo
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
-	"github.com/protolambda/consensus-actor/flags"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/urfave/cli"
-	"os"
-	"path/filepath"
+
+	"github.com/protolambda/consensus-actor/flags"
 )
 
 type PerfComputer struct {
@@ -22,6 +24,9 @@ type PerfComputer struct {
 	blocks *leveldb.DB
 	randao *leveldb.DB
 	perf   *leveldb.DB
+
+	lhChainDB       *leveldb.DB // lighthouse chain data, stores block contents
+	lhChainSnapshot *leveldb.Snapshot
 
 	indices []common.BoundedIndex
 
@@ -35,7 +40,7 @@ func NewPerfComputer(ctx *cli.Context, log log.Logger) (*PerfComputer, error) {
 		endEpoch:   common.Epoch(ctx.Uint64(flags.PerfEndEpochFlag.Name)),
 	}
 
-	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
+	baseDir := ctx.String(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}
@@ -75,7 +80,18 @@ func NewPerfComputer(ctx *cli.Context, log log.Logger) (*PerfComputer, error) {
 	} else {
 		imp.perf = perf
 	}
-
+	if chainDB, err := loadLighthouseChainDB(ctx); err != nil {
+		_ = imp.Close()
+		return nil, err
+	} else {
+		imp.lhChainDB = chainDB
+		snap, err := chainDB.GetSnapshot()
+		if err != nil {
+			_ = imp.Close()
+			return nil, err
+		}
+		imp.lhChainSnapshot = snap
+	}
 	return imp, nil
 }
 
@@ -94,6 +110,14 @@ func (s *PerfComputer) Close() error {
 	if s.perf != nil {
 		if err := s.perf.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close perf db: %w", err))
+		}
+	}
+	if s.lhChainSnapshot != nil {
+		s.lhChainSnapshot.Release()
+	}
+	if s.lhChainDB != nil {
+		if err := s.lhChainDB.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close lh chain db: %w", err))
 		}
 	}
 	return result
@@ -117,7 +141,7 @@ func (s *PerfComputer) Run(ctx context.Context) error {
 		if i%100 == 0 {
 			s.log.Info("updating performance data", "epoch", i)
 		}
-		if err := processPerf(s.perf, s.spec, s.blocks, s.randao, s.indices, i); err != nil {
+		if err := processPerf(s.perf, s.lhChainSnapshot, s.spec, s.blocks, s.randao, s.indices, i); err != nil {
 			return fmt.Errorf("failed to process performance at epoch %d: %w", i, err)
 		}
 	}

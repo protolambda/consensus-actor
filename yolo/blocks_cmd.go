@@ -5,15 +5,16 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"os"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
-	"github.com/protolambda/consensus-actor/flags"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"github.com/urfave/cli"
-	"os"
-	"sync"
+
+	"github.com/protolambda/consensus-actor/flags"
 )
 
 const lhBeaconBlockRootsPrefix = "bbr"
@@ -25,8 +26,6 @@ type BlocksImporter struct {
 	startSlot common.Slot
 	endSlot   common.Slot
 
-	workers uint64
-
 	blocks    *leveldb.DB // blocks db to import into
 	lhFreezer *leveldb.DB // lighthouse freezer data, stores beacon block roots in batches
 	lhChainDB *leveldb.DB // lighthouse chain data, stores block contents
@@ -37,12 +36,11 @@ func NewBlocksImporter(ctx *cli.Context, log log.Logger) (*BlocksImporter, error
 		log:       log,
 		startSlot: common.Slot(ctx.Uint64(flags.ImportStartSlotFlag.Name)),
 		endSlot:   common.Slot(ctx.Uint64(flags.ImportEndSlotFlag.Name)),
-		workers:   ctx.Uint64(flags.ImportWorkersFlag.Name),
 		lhFreezer: nil,
 		lhChainDB: nil,
 	}
 
-	baseDir := ctx.GlobalString(flags.DataDirFlag.Name)
+	baseDir := ctx.String(flags.DataDirFlag.Name)
 	if baseDir == "" {
 		return nil, fmt.Errorf("need base data dir path")
 	}
@@ -56,45 +54,45 @@ func NewBlocksImporter(ctx *cli.Context, log log.Logger) (*BlocksImporter, error
 	} else {
 		imp.blocks = blocks
 	}
-	if err := imp.loadLighthouseChainDBMaybe(ctx); err != nil {
+	if chainDB, err := loadLighthouseChainDB(ctx); err != nil {
 		_ = imp.Close()
 		return nil, err
+	} else {
+		imp.lhChainDB = chainDB
 	}
-	if err := imp.loadLighthouseFreezerDBMaybe(ctx); err != nil {
+	if freezerDB, err := loadLighthouseFreezerDB(ctx); err != nil {
 		_ = imp.Close()
 		return nil, err
+	} else {
+		imp.lhFreezer = freezerDB
 	}
 	return imp, nil
 }
 
-func (s *BlocksImporter) loadLighthouseChainDBMaybe(ctx *cli.Context) error {
-	cacheSize := ctx.Int(flags.ImportLighthouseChainCacheSizeFlag.Name)
-	chPath := ctx.String(flags.ImportLighthouseChainFlag.Name)
+func loadLighthouseChainDB(ctx *cli.Context) (*leveldb.DB, error) {
+	cacheSize := ctx.Int(flags.LighthouseChainCacheSizeFlag.Name)
+	chPath := ctx.String(flags.LighthouseChainFlag.Name)
 	if chPath == "" {
-		s.log.Info("No lighthouse chain db specified for import")
-		return nil
+		return nil, fmt.Errorf("no lighthouse chain db specified for import")
 	}
 	db, err := openDB(chPath, true, cacheSize, 0)
 	if err != nil {
-		return fmt.Errorf("failed to open lighthouse chain db: %w", err)
+		return nil, fmt.Errorf("failed to open lighthouse chain db: %w", err)
 	}
-	s.lhChainDB = db
-	return nil
+	return db, nil
 }
 
-func (s *BlocksImporter) loadLighthouseFreezerDBMaybe(ctx *cli.Context) error {
-	cacheSize := ctx.Int(flags.ImportLighthouseFreezerCacheSizeFlag.Name)
-	frPath := ctx.String(flags.ImportLighthouseFreezerFlag.Name)
+func loadLighthouseFreezerDB(ctx *cli.Context) (*leveldb.DB, error) {
+	cacheSize := ctx.Int(flags.LighthouseFreezerCacheSizeFlag.Name)
+	frPath := ctx.String(flags.LighthouseFreezerFlag.Name)
 	if frPath == "" {
-		s.log.Info("No lighthouse freezer db specified for import")
-		return nil
+		return nil, fmt.Errorf("no lighthouse freezer db specified for import")
 	}
 	db, err := openDB(frPath, true, cacheSize, 0)
 	if err != nil {
-		return fmt.Errorf("failed to open lighthouse freezer db: %w", err)
+		return nil, fmt.Errorf("failed to open lighthouse freezer db: %w", err)
 	}
-	s.lhFreezer = db
-	return nil
+	return db, nil
 }
 
 func (s *BlocksImporter) Close() error {
@@ -118,34 +116,9 @@ func (s *BlocksImporter) Close() error {
 }
 
 func (s *BlocksImporter) Run(ctx context.Context) error {
-	out := make(chan error, s.workers)
-	var wg sync.WaitGroup
-	wg.Add(int(s.workers))
-	for i := uint64(0); i < s.workers; i++ {
-		go func(id uint64) {
-			err := s.importBlocks(ctx, id, s.workers)
-			if err != nil {
-				out <- fmt.Errorf("worker %d error: %w", id, err)
-			}
-			wg.Done()
-		}(i)
-	}
-	wg.Wait()
-	close(out)
-	var result error
-	for err := range out {
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-	return result
-}
-
-func (s *BlocksImporter) importBlocks(ctx context.Context, workerIndex uint64, workers uint64) error {
 	if s.endSlot < s.startSlot {
 		return fmt.Errorf("end slot cannot be lower than start slot: %d < %d", s.endSlot, s.startSlot)
 	}
-	log := s.log.New("worker", workerIndex, "workers", workers)
 
 	iter := s.lhFreezer.NewIterator(util.BytesPrefix([]byte(lhBeaconBlockRootsPrefix)), nil)
 	defer iter.Release()
@@ -173,23 +146,15 @@ func (s *BlocksImporter) importBlocks(ctx context.Context, workerIndex uint64, w
 		if keyInt == 0 {
 			continue
 		}
-		if keyInt%workers != workerIndex {
-			continue
-		}
 
 		value := iter.Value()
 		slot := common.Slot((keyInt - 1) * 128)
-
-		var tmpKey [3 + 32]byte
-		copy(tmpKey[:3], lhBeaconBlocksPrefix)
 
 		// import all blocks in this lighthouse block roots batch at once
 		// copy over block root from lighthouse db instead of recomputing it
 		b := new(leveldb.Batch)
 		var prevRoot [32]byte
 
-		var outKeyBlock [3 + 8]byte
-		copy(outKeyBlock[:3], KeyBlock)
 		var outKeyBlockRoot [3 + 8]byte
 		copy(outKeyBlockRoot[:3], KeyBlockRoot)
 		for i := 0; i < 128; i++ {
@@ -199,7 +164,7 @@ func (s *BlocksImporter) importBlocks(ctx context.Context, workerIndex uint64, w
 			}
 			progress := slot - s.startSlot
 			if progress%1000 == 0 {
-				log.Info("importing blocks from lighthouse db", "progress", progress, "slot", slot, "gaps", gapSlots)
+				s.log.Info("importing blocks from lighthouse db", "progress", progress, "slot", slot, "gaps", gapSlots)
 			}
 			if slot >= s.endSlot {
 				break
@@ -229,7 +194,11 @@ func (s *BlocksImporter) importBlocks(ctx context.Context, workerIndex uint64, w
 
 			root := value[i*32 : i*32+32]
 			binary.BigEndian.PutUint64(outKeyBlockRoot[3:], uint64(slot))
-			b.Put(outKeyBlockRoot[:], root)
+			var root32 [32]byte
+			copy(root32[:], root)
+			if root32 != (common.Root{}) {
+				b.Put(outKeyBlockRoot[:], root)
+			}
 
 			// if root matches previous root:
 			if bytes.Equal(prevRoot[:], root) {
@@ -238,14 +207,6 @@ func (s *BlocksImporter) importBlocks(ctx context.Context, workerIndex uint64, w
 				gapSlots += 1
 				continue
 			}
-
-			copy(tmpKey[3:], root)
-			blockContents, err := s.lhChainDB.Get(tmpKey[:], nil)
-			if err != nil {
-				return fmt.Errorf("lighthouse chain db is missing contents referenced by lighthouse freezer db: %w", err)
-			}
-			binary.BigEndian.PutUint64(outKeyBlock[3:], uint64(slot))
-			b.Put(outKeyBlock[:], blockContents)
 
 			slot += 1
 
@@ -260,6 +221,6 @@ func (s *BlocksImporter) importBlocks(ctx context.Context, workerIndex uint64, w
 			break
 		}
 	}
-	log.Info("finished importing blocks")
+	s.log.Info("finished importing blocks")
 	return nil
 }

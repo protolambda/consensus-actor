@@ -3,6 +3,7 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -45,7 +46,7 @@ const (
 // if currEp == 1, then process 0 and 1, filtered for target == 0
 // if currEp == 2, then process 1 and 2, filtered for target == 1
 // etc.
-func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, randaoDB *leveldb.DB, indicesBounded []common.BoundedIndex, currEp common.Epoch) error {
+func processPerf(perfDB *leveldb.DB, lhChainDB *leveldb.Snapshot, spec *common.Spec, blocksDB *leveldb.DB, randaoDB *leveldb.DB, indicesBounded []common.BoundedIndex, currEp common.Epoch) error {
 	// don't have to re-hash the block if we just load the hashes
 
 	// get all block roots in previous and current epoch (or just current if genesis)
@@ -75,7 +76,7 @@ func processPerf(perfDB *leveldb.DB, spec *common.Spec, blocksDB *leveldb.DB, ra
 	// get all blocks in previous and/or current epoch
 	blocks := make([]*BlockData, 0, count)
 	for i := common.Slot(0); i < count; i++ {
-		if b, err := getBlock(blocksDB, spec, prevStart+i); err == ErrBlockNotFound {
+		if b, err := getBlock(blocksDB, lhChainDB, spec, prevStart+i); err == ErrBlockNotFound {
 			continue
 		} else if err != nil {
 			return fmt.Errorf("failed to get block at slot %d: %v", prevStart+i, err)

@@ -3,6 +3,7 @@ package yolo
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/zrnt/eth2/util/hashing"
@@ -23,7 +24,7 @@ const (
 	KeyRandaoMix string = "rnd"
 )
 
-func updateRandao(log log.Logger, spec *common.Spec, randaoDB *leveldb.DB, blocks *leveldb.DB, prevEpoch common.Epoch) error {
+func updateRandao(log log.Logger, spec *common.Spec, randaoDB *leveldb.DB, randaos map[common.Slot]common.BLSSignature, prevEpoch common.Epoch) error {
 	// with look-ahead
 	prevMix, err := getRandao(randaoDB, prevEpoch)
 	if err != nil {
@@ -41,12 +42,12 @@ func updateRandao(log log.Logger, spec *common.Spec, randaoDB *leveldb.DB, block
 		if slot == 0 {
 			continue
 		}
-		dat, err := getBlock(blocks, spec, slot)
-		if err == ErrBlockNotFound {
+		randaoReveal, ok := randaos[slot]
+		if !ok {
 			log.Info("skipping gap block in randao processing", "slot", slot)
 			continue
 		}
-		mix = hashing.XorBytes32(mix, hashing.Hash(dat.RandaoReveal[:]))
+		mix = hashing.XorBytes32(mix, hashing.Hash(randaoReveal[:]))
 	}
 	epoch := prevEpoch + 1
 	var batch leveldb.Batch
