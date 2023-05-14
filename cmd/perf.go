@@ -35,6 +35,11 @@ var (
 		Usage: "End epoch (exclusive) of validator performance data to update",
 		Value: ^uint64(0),
 	}
+	PerfWorkersFlag = &cli.IntFlag{
+		Name:  "workers",
+		Usage: "number of workers to used to process in parallel",
+		Value: 8,
+	}
 	// TODO spec flag
 )
 
@@ -51,6 +56,7 @@ var PerfCmd = &cli.Command{
 		PerfEraFlag,
 		PerfStartEpochFlag,
 		PerfEndEpochFlag,
+		PerfWorkersFlag,
 	},
 }
 
@@ -61,6 +67,12 @@ func Perf(ctx *cli.Context) error {
 	}
 	startEpoch := common.Epoch(ctx.Uint64(PerfStartEpochFlag.Name))
 	endEpoch := common.Epoch(ctx.Uint64(PerfEndEpochFlag.Name))
+
+	workers := ctx.Int(PerfWorkersFlag.Name)
+	if workers < 0 || workers > 128 {
+		return fmt.Errorf("invalid workers count: %d", workers)
+	}
+
 	perfDB, err := fun.OpenDB(ctx.Path(PerfPerfFlag.Name), false, 100, 0)
 	if err != nil {
 		return fmt.Errorf("failed to open perf db: %w", err)
@@ -89,7 +101,7 @@ func Perf(ctx *cli.Context) error {
 		log.Warn("adjusting upper bound", "end_epoch", startEpoch, "max_era_epoch", maxEpoch)
 	}
 
-	if err := fun.UpdatePerf(log, perfDB, spec, es, startEpoch, endEpoch); err != nil {
+	if err := fun.UpdatePerf(ctx.Context, log, perfDB, spec, es, startEpoch, endEpoch, workers); err != nil {
 		return fmt.Errorf("failed to update validator performance data: %w", err)
 	}
 	return nil

@@ -1,9 +1,11 @@
 package fun
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/golang/snappy"
@@ -263,30 +265,86 @@ func resetPerf(perfDB *leveldb.DB, spec *common.Spec, resetSlot common.Slot) err
 	return nil
 }
 
-func UpdatePerf(log log.Logger, perf *leveldb.DB, spec *common.Spec, st *era.Store, start, end common.Epoch) error {
+type perfJob struct {
+	start common.Epoch
+	end   common.Epoch
+}
+
+func UpdatePerf(ctx context.Context, log log.Logger, perf *leveldb.DB, spec *common.Spec, st *era.Store, start, end common.Epoch, workers int) error {
 	if end < start {
 		return fmt.Errorf("invalid epoch range %d - %d", start, end)
 	}
 	epochsPerEra := common.Epoch(era.SlotsPerEra / spec.SLOTS_PER_EPOCH)
 	log.Info("starting", "start_epoch", start, "end_epoch", end, "epochs_per_era", epochsPerEra)
 
-	for ep := start; ep < end; ep += epochsPerEra - (ep % epochsPerEra) {
-		jobStart := ep
-		jobEnd := ep + epochsPerEra
-		if jobEnd > end {
-			jobEnd = end
-		}
-		log.Info("starting job", "start_epoch", jobStart, "end_epoch", jobEnd)
-		// TODO: parallel jobs
-		if err := updateJob(log, perf, spec, st, jobStart, jobEnd); err != nil {
-			return err
-		}
+	work := make(chan perfJob, workers)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	ctx, cancelCause := context.WithCancelCause(ctx)
+	for i := 0; i < workers; i++ {
+		go func(i int) {
+			defer wg.Done()
+
+			log.Info("started worker", "i", i)
+
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case job, ok := <-work:
+					if !ok {
+						return
+					}
+					err := updateJob(ctx, log, perf, spec, st, job.start, job.end)
+					if err != nil {
+						cancelCause(fmt.Errorf("worker %d failed job (%d - %d): %w", i, job.start, job.end, err))
+					}
+				}
+			}
+		}(i)
 	}
+
+	// We can make jobs smaller than an era for more parallel work,
+	// but then we just end up using more resources in total because of overhead, and we only have limited workers
+	// TODO: consider scheduling smaller work jobs
+
+	// schedule all the work
+	go func() {
+		for ep := start; ep < end; ep += epochsPerEra - (ep % epochsPerEra) {
+			jobStart := ep
+			jobEnd := ep + epochsPerEra
+			if jobEnd > end {
+				jobEnd = end
+			}
+			select {
+			case work <- perfJob{start: jobStart, end: jobEnd}:
+				continue
+			case <-ctx.Done():
+				wg.Wait() // wait for workers to all shut down
+				return
+			}
+		}
+		// signal all work has been scheduled
+		close(work)
+	}()
+
+	// wait for all workers to shut down
+	wg.Wait()
+
+	if err := context.Cause(ctx); err != nil {
+		log.Error("interrupted work", "err", err)
+		return err
+	}
+
 	log.Info("finished", "start_epoch", start, "end_epoch", end)
 	return nil
 }
 
-func updateJob(log log.Logger, perfDB *leveldb.DB, spec *common.Spec, st *era.Store, start, end common.Epoch) error {
+func updateJob(ctx context.Context, log log.Logger, perfDB *leveldb.DB, spec *common.Spec, st *era.Store, start, end common.Epoch) error {
+	log.Info("starting job", "start_epoch", start, "end_epoch", end)
+
 	if spec.SLOTS_PER_HISTORICAL_ROOT != era.SlotsPerEra {
 		return fmt.Errorf("weird spec, expected %d slots per historical root: %w")
 	}
@@ -440,6 +498,9 @@ func updateJob(log log.Logger, perfDB *leveldb.DB, spec *common.Spec, st *era.St
 	})
 
 	for currEp := start; currEp < end; currEp++ {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("stopped before processing epoch %d: %w", currEp, err)
+		}
 		validatorPerfs, err := processPerf(spec, blockRootFn, attFn, randaoFn, indicesBounded, currEp)
 		if err != nil {
 			return fmt.Errorf("failed to process epoch %d: %w", currEp, err)
