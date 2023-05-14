@@ -1,4 +1,4 @@
-package yolo
+package fun
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/golang/snappy"
 	"github.com/syndtr/goleveldb/leveldb"
 )
@@ -73,14 +74,19 @@ func (t *Tile) Opaque() bool {
 	return false
 }
 
-func (s *Server) handleImgRequest(tileType uint8) http.Handler {
+type ImageHandler struct {
+	Log     log.Logger
+	TilesDB *leveldb.DB
+}
+
+func (s *ImageHandler) HandleImgRequest(tileType uint8) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		xStr := q.Get("x")
 		x, err := strconv.ParseInt(xStr, 10, 32)
 		if err != nil {
 			w.WriteHeader(400)
-			s.log.Debug("query with bad x value", "err", err)
+			s.Log.Debug("query with bad x value", "err", err)
 			_, _ = w.Write([]byte(fmt.Sprintf("bad x value: %v", err)))
 			return
 		}
@@ -88,7 +94,7 @@ func (s *Server) handleImgRequest(tileType uint8) http.Handler {
 		y, err := strconv.ParseInt(yStr, 10, 32)
 		if err != nil {
 			w.WriteHeader(400)
-			s.log.Debug("query with bad y value", "err", err)
+			s.Log.Debug("query with bad y value", "err", err)
 			_, _ = w.Write([]byte(fmt.Sprintf("bad y value: %v", err)))
 			return
 		}
@@ -96,7 +102,7 @@ func (s *Server) handleImgRequest(tileType uint8) http.Handler {
 		z, err := strconv.ParseInt(zStr, 10, 32)
 		if err != nil {
 			w.WriteHeader(400)
-			s.log.Debug("query with bad z value", "err", err)
+			s.Log.Debug("query with bad z value", "err", err)
 			_, _ = w.Write([]byte(fmt.Sprintf("bad z value: %v", err)))
 			return
 		}
@@ -131,22 +137,22 @@ func (s *Server) handleImgRequest(tileType uint8) http.Handler {
 		}
 
 		key := tileDbKey(tileType, tileX, tileY, zoom)
-		tilePix, err := s.tiles.Get(key, nil)
+		tilePix, err := s.TilesDB.Get(key, nil)
 		if err == leveldb.ErrNotFound {
 			w.WriteHeader(404)
-			s.log.Debug(fmt.Sprintf("could not find tile: %d:%d zoom %d (translated zoom: %d)\n", x, y, z, zoom))
+			s.Log.Debug(fmt.Sprintf("could not find tile: %d:%d zoom %d (translated zoom: %d)\n", x, y, z, zoom))
 			_, _ = w.Write([]byte(fmt.Sprintf("could not find tile: %d:%d:%d", x, y, z)))
 			return
 		} else if err != nil {
 			w.WriteHeader(500)
-			s.log.Debug(fmt.Sprintf("server error while getting tile: %d:%d zoom %d (translated zoom: %d)\n", x, y, z, zoom))
+			s.Log.Debug(fmt.Sprintf("server error while getting tile: %d:%d zoom %d (translated zoom: %d)\n", x, y, z, zoom))
 			_, _ = w.Write([]byte(fmt.Sprintf("server error while getting tile: %d:%d:%d", x, y, z)))
 			return
 		}
 
 		tilePix, err = snappy.Decode(nil, tilePix)
 		if err != nil {
-			s.log.Warn("snappy err", "err", err)
+			s.Log.Warn("snappy err", "err", err)
 			w.WriteHeader(500)
 			return
 		}
@@ -164,7 +170,7 @@ func (s *Server) handleImgRequest(tileType uint8) http.Handler {
 
 		var buf bytes.Buffer
 		if err = png.Encode(&buf, &img); err != nil {
-			s.log.Warn("PNG encoding err", "err", err)
+			s.Log.Warn("PNG encoding err", "err", err)
 			w.WriteHeader(500)
 			return
 		}

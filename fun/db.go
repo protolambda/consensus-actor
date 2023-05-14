@@ -1,4 +1,4 @@
-package yolo
+package fun
 
 import (
 	"github.com/syndtr/goleveldb/leveldb"
@@ -7,13 +7,13 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
-// opens a level DB.
+// OpenDB opens a level DB.
 //
 // Filepath to locate db at.
 // Readonly to limit db writes.
 // Cache in megabytes to trade memory for better performance.
 // writeBuf in megabytes to improve writing performance
-func openDB(file string, readonly bool, cache int, writeBuf int) (*leveldb.DB, error) {
+func OpenDB(file string, readonly bool, cache int, writeBuf int) (*leveldb.DB, error) {
 	options := &opt.Options{
 		Filter:                 filter.NewBloomFilter(10),
 		DisableSeeksCompaction: true,

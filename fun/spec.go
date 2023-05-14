@@ -1,10 +1,11 @@
-package yolo
+package fun
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/protolambda/zrnt/eth2/beacon/common"
 	"os"
+
+	"github.com/protolambda/zrnt/eth2/beacon/common"
 )
 
 func loadSpec(specFilePath string) (*common.Spec, error) {

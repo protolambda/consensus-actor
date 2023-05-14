@@ -1,4 +1,4 @@
-package yolo
+package fun
 
 const (
 	maxZoom = 9
@@ -8,11 +8,4 @@ const (
 	maxArtificialZoom = 13
 	tileSize          = 128
 	tileSizeSquared   = tileSize * tileSize
-
-	boundedIndicesFileName = "bounded_indices.json"
-	specFileName           = "spec.json"
-	dataBlocksDBName       = "blocks"
-	dataRandaoDBName       = "randao"
-	dataPerfDBName         = "perf"
-	dataTilesDBName        = "tiles"
 )

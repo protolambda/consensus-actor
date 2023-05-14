@@ -1,8 +1,9 @@
-package yolo
+package fun
 
 import (
 	"encoding/binary"
 	"fmt"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/golang/snappy"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
@@ -303,5 +304,41 @@ func resetTilesTyped(tilesDB *leveldb.DB, spec *common.Spec, tileType uint8, res
 	if err := tilesDB.Write(&batch, nil); err != nil {
 		return fmt.Errorf("failed to remove tile data of type %d, resetting to slot %d: %v", tileType, resetSlot, err)
 	}
+	return nil
+}
+
+func UpdateTiles(log log.Logger, tiles, perf *leveldb.DB, startEpoch, endEpoch common.Epoch) error {
+	if endEpoch < startEpoch {
+		return fmt.Errorf("end epoch cannot be lower than start epoch: %d < %d", endEpoch, startEpoch)
+	}
+	lastPerfEpoch, err := lastPerfEpoch(perf)
+	if err != nil {
+		return fmt.Errorf("could not read max block slot: %w", err)
+	}
+	if lastPerfEpoch < endEpoch {
+		log.Info("reducing end epoch to available performance data", "end", lastPerfEpoch)
+		endEpoch = lastPerfEpoch
+	}
+
+	for tX := uint64(startEpoch) / tileSize; tX <= uint64(endEpoch)/tileSize; tX++ {
+		log.Info("creating base tiles", "tX", tX, "zoom", 0)
+		if err := performanceToTiles(log, tiles, perf, 0, tX); err != nil {
+			return fmt.Errorf("failed to update zoom 0 tiles at tX %d: %v", tX, err)
+		}
+	}
+
+	for z := uint8(1); z <= maxZoom; z++ {
+		tileSizeAbs := uint64(tileSize) << z
+		tilesXStart := uint64(startEpoch) / tileSizeAbs
+		tilesXEnd := (uint64(endEpoch) + tileSizeAbs - 1) / tileSizeAbs
+		for i := tilesXStart; i < tilesXEnd; i++ {
+			log.Info("computing conv tiles", "tX", i, "zoom", z)
+			if err := convTiles(tiles, 0, i, z); err != nil {
+				return fmt.Errorf("failed tile convolution layer at zoom %d tX %d: %v", z, i, err)
+			}
+		}
+	}
+
+	log.Info("finished computing tile data")
 	return nil
 }
