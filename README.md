@@ -1,10 +1,13 @@
 # consensus.actor
 
-Work in progress. This tool is not finished.
+*work in progress, site is not currently deployed*
 
 Site to view Ethereum consensus-layer activity:
 a network-wide historical view of attester performance as interactive map.
 
+Mainnet Ethereum Beacon-chain, at ~201K epochs, ~624K validators:
+
+![Example visualization](.github/assets/example.png)
 
 ## Background
 
