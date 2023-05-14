@@ -54,10 +54,10 @@ func (t *Tile) At(x, y int) color.Color {
 }
 
 func (t *Tile) RGBAAt(x, y int) color.RGBA {
-	x += t.OffsetX
-	y += t.OffsetY
 	x >>= t.Scale
 	y >>= t.Scale
+	x += t.OffsetX
+	y += t.OffsetY
 	if x < 0 || x >= tileSize || y < 0 || y >= tileSize {
 		return color.RGBA{}
 	}

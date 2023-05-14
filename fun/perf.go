@@ -355,7 +355,7 @@ func updateJob(ctx context.Context, log log.Logger, perfDB *leveldb.DB, spec *co
 	epochsPerEra := common.Epoch(era.SlotsPerEra / spec.SLOTS_PER_EPOCH)
 	currEraEpoch := end
 	if rem := end % epochsPerEra; rem > 0 {
-		currEraEpoch += rem
+		currEraEpoch += epochsPerEra - rem
 	}
 	currEraSlot, _ := spec.EpochStartSlot(currEraEpoch)
 
@@ -401,28 +401,29 @@ func updateJob(ctx context.Context, log log.Logger, perfDB *leveldb.DB, spec *co
 
 	if currEraEpoch >= epochsPerEra {
 		prevEraEpoch := currEraEpoch - epochsPerEra
+		prevEraSlot, _ := spec.EpochStartSlot(prevEraEpoch)
 		if prevEraEpoch+2 >= start { // if the start is close to the era boundary, we'll need to load the prev era state.
 			if prevEraEpoch < spec.ALTAIR_FORK_EPOCH {
 				var state phase0.BeaconState
-				if err := st.State(currEraSlot, spec.Wrap(&state)); err != nil {
+				if err := st.State(prevEraSlot, spec.Wrap(&state)); err != nil {
 					return err
 				}
 				prevEraBlockRoots = state.BlockRoots
 			} else if prevEraEpoch < spec.BELLATRIX_FORK_EPOCH {
 				var state altair.BeaconState
-				if err := st.State(currEraSlot, spec.Wrap(&state)); err != nil {
+				if err := st.State(prevEraSlot, spec.Wrap(&state)); err != nil {
 					return err
 				}
 				prevEraBlockRoots = state.BlockRoots
 			} else if prevEraEpoch < spec.CAPELLA_FORK_EPOCH {
 				var state bellatrix.BeaconState
-				if err := st.State(currEraSlot, spec.Wrap(&state)); err != nil {
+				if err := st.State(prevEraSlot, spec.Wrap(&state)); err != nil {
 					return err
 				}
 				prevEraBlockRoots = state.BlockRoots
 			} else {
 				var state capella.BeaconState
-				if err := st.State(currEraSlot, spec.Wrap(&state)); err != nil {
+				if err := st.State(prevEraSlot, spec.Wrap(&state)); err != nil {
 					return err
 				}
 				prevEraBlockRoots = state.BlockRoots
@@ -458,6 +459,9 @@ func updateJob(ctx context.Context, log log.Logger, perfDB *leveldb.DB, spec *co
 			} else if err != nil {
 				return nil, err
 			}
+			if slot != block.Message.Slot {
+				return nil, fmt.Errorf("loaded wrong block, got slot %d, but requested %d", block.Message.Slot, slot)
+			}
 			return block.Message.Body.Attestations, nil
 		} else if ep < spec.BELLATRIX_FORK_EPOCH {
 			var block altair.SignedBeaconBlock
@@ -465,6 +469,9 @@ func updateJob(ctx context.Context, log log.Logger, perfDB *leveldb.DB, spec *co
 				return nil, nil
 			} else if err != nil {
 				return nil, err
+			}
+			if slot != block.Message.Slot {
+				return nil, fmt.Errorf("loaded wrong block, got slot %d, but requested %d", block.Message.Slot, slot)
 			}
 			return block.Message.Body.Attestations, nil
 		} else if ep < spec.CAPELLA_FORK_EPOCH {
@@ -474,6 +481,9 @@ func updateJob(ctx context.Context, log log.Logger, perfDB *leveldb.DB, spec *co
 			} else if err != nil {
 				return nil, err
 			}
+			if slot != block.Message.Slot {
+				return nil, fmt.Errorf("loaded wrong block, got slot %d, but requested %d", block.Message.Slot, slot)
+			}
 			return block.Message.Body.Attestations, nil
 		} else {
 			var block capella.SignedBeaconBlock
@@ -481,6 +491,9 @@ func updateJob(ctx context.Context, log log.Logger, perfDB *leveldb.DB, spec *co
 				return nil, nil
 			} else if err != nil {
 				return nil, err
+			}
+			if slot != block.Message.Slot {
+				return nil, fmt.Errorf("loaded wrong block, got slot %d, but requested %d", block.Message.Slot, slot)
 			}
 			return block.Message.Body.Attestations, nil
 		}

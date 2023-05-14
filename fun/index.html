@@ -26,6 +26,8 @@
             z-index: 10000;
             bottom: 5px;
             left: 5px;
+            background: white;
+            padding: 5px;
         }
         #draw-options {
             position: absolute;
@@ -64,13 +66,13 @@
         maxZoom: maxZoom,
         zoom: 1,
         center: [0, 0],
+        attributionControl: false,
     }).fitBounds([[-450000/256/2, 256], [256, 140000/256/2]]);
 
     // hook map to tile server
     var validatorOrderLayer = L.tileLayer('{{.API}}/validator-order?x={x}&y={y}&z={z}', {
         minZoom: 0,
         maxZoom: maxZoom,
-        attribution: 'data by @protolambda',
         id: 'beacon',
         tileSize: 128,
         // added to the actual zoom level on request
@@ -81,11 +83,11 @@
     // show which (epoch, validator) pixel is being clicked
     mymap.on('click', function(e){
         var loc = L.CRS.Simple.latLngToPoint(e.latlng, maxZoom);
-        var validator = Math.floor(loc.y);
+        var validator = Math.floor(loc.y / (1 << (13 - 9)));
         if(loc.y < 0) {
             validator = "unknown"
         }
-        var epoch = Math.floor(loc.x);
+        var epoch = Math.floor(loc.x / (1 << (13 - 9)));
         if(loc.x < 0) {
             epoch = "pre-genesis"
         }
@@ -120,7 +122,7 @@
         }
     });
     var opts = { shapeOptions: { fillColor: "#ff0000", color: "#ff0000", opacity: 0.3 } };
-    drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+    drawControl.setDrawingOptions({ polyline: opts, rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
 
     mymap.addControl(drawControl);
 
@@ -132,15 +134,15 @@
 
     L.DomUtil.get('draw-option-fill').onchange = function (e) {
         var opts = { shapeOptions: { fill: e.target.checked } };
-        drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+        drawControl.setDrawingOptions({ polyline: opts, rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
     };
     L.DomUtil.get('draw-option-color').onchange = function (e) {
         var opts = { shapeOptions: { fillColor: e.target.value, color: e.target.value } };
-        drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+        drawControl.setDrawingOptions({ polyline: opts, rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
     };
     L.DomUtil.get('draw-option-stroke').onchange = function (e) {
         var opts = { shapeOptions: { stroke: e.target.checked } };
-        drawControl.setDrawingOptions({ rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
+        drawControl.setDrawingOptions({ polyline: opts, rectangle: opts, polygon: opts, circle: opts, circlemarker: opts });
     };
 </script>
 

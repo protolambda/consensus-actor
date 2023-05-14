@@ -115,10 +115,7 @@ func (s *Store) State(slot common.Slot, dest common.SSZObj) error {
 }
 
 func (s *Store) Block(slot common.Slot, dest common.SSZObj) error {
-	eraSlot := slot - (slot % SlotsPerEra)
-	if slot > eraSlot {
-		eraSlot += SlotsPerEra
-	}
+	eraSlot := slot - (slot % SlotsPerEra) + SlotsPerEra
 	f, err := s.openEra(eraSlot)
 	if err != nil {
 		return fmt.Errorf("failed to open era: %w", err)

@@ -84,6 +84,8 @@ func Perf(ctx *cli.Context) error {
 		return fmt.Errorf("failed to index era store: %w", err)
 	}
 	spec := configs.Mainnet
+	spec.BELLATRIX_FORK_EPOCH = 144896
+	spec.CAPELLA_FORK_EPOCH = 194048
 
 	minSlot, maxSlot := es.Bounds()
 	minEpoch, maxEpoch := spec.SlotToEpoch(minSlot), spec.SlotToEpoch(maxSlot)
